@@ -1,0 +1,10 @@
+# Настройки, общие для всех стендов. Подключение к БД приходит снаружи:
+# переменные SPRING_DATASOURCE_HIKARI_* из docker-compose.yml в smart-factoring-deploy.
+# В тестах этот файл перекрывается app/src/test/resources/application.yml
+spring:
+  liquibase:
+    change-log: classpath:liquibase/db.changelog-master.xml
+    default-schema: public
+    parameters:
+      appUsername: ${spring.datasource.hikari.username}
+      schema: public
