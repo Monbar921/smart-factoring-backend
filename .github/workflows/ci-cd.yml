@@ -1,9 +1,10 @@
 name: CI/CD
 
 # Логика по событиям:
-#   pull request в main -> сборка, checkstyle и тесты
-#   push в main         -> + образ в ghcr.io (теги: <short sha>, latest)
-#                          + repository_dispatch в deploy-репозиторий, который раскатывает образ на VDS
+#   pull request в main/test -> сборка, checkstyle и тесты
+#   push в main/test         -> + образ в ghcr.io (теги: <short sha>, <ветка>, для main ещё latest)
+#                               + repository_dispatch в deploy-репозиторий, который раскатывает образ на VDS
+#                                 (ветка передаётся в payload, по ней deploy-репозиторий выбирает окружение)
 #
 # Настройки репозитория (Settings -> Secrets and variables -> Actions):
 #   vars.DEPLOY_REPO     - deploy-репозиторий, owner/name
@@ -35,10 +36,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
@@ -51,7 +52,7 @@ jobs:
 
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: test-reports
           path: "**/target/surefire-reports/"
@@ -59,7 +60,7 @@ jobs:
 
       - name: Upload application jar
         if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: app-jar
           path: app/target/app.jar
@@ -69,7 +70,9 @@ jobs:
   image:
     name: Build & push image
     needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name != 'pull_request' &&
+      contains(fromJSON('["refs/heads/main", "refs/heads/test"]'), github.ref)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -82,10 +85,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download application jar
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: app-jar
           path: app/target
@@ -104,7 +107,8 @@ jobs:
           images: ${{ steps.name.outputs.name }}
           tags: |
             type=raw,value=${{ steps.name.outputs.tag }}
-            type=raw,value=latest
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -155,6 +159,7 @@ jobs:
             --arg tag "$TAG" \
             --arg digest "$DIGEST" \
             --arg sha "$GITHUB_SHA" \
-            '{event_type: "deploy", client_payload: {service: $service, image: $image, tag: $tag, digest: $digest, sha: $sha}}' \
+            --arg branch "$GITHUB_REF_NAME" \
+            '{event_type: "deploy", client_payload: {service: $service, branch: $branch, image: $image, tag: $tag, digest: $digest, sha: $sha}}' \
           | gh api "repos/${DEPLOY_REPO}/dispatches" --input -
-          echo "Dispatched ${IMAGE}:${TAG} to ${DEPLOY_REPO}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Dispatched ${IMAGE}:${TAG} (${GITHUB_REF_NAME}) to ${DEPLOY_REPO}" >> "$GITHUB_STEP_SUMMARY"
