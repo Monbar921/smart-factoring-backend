@@ -18,7 +18,6 @@
         <revision>0.1.0-SNAPSHOT</revision>
         <java.version>25</java.version>
         <spring.version>4.1.1</spring.version>
-        <docker.build.directory>${project.build.directory}/dockerbuild</docker.build.directory>
 
         <spring-cloud.version>2025.1.3</spring-cloud.version>
         <springdoc.version>3.1.0</springdoc.version>
@@ -122,63 +121,6 @@
     </dependencies>
 
     <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-antrun-plugin</artifactId>
-                    <executions>
-                        <!-- Кладём собранный jar файл приложения в директорию lib -->
-                        <execution>
-                            <id>copy-jar</id>
-                            <goals>
-                                <goal>run</goal>
-                            </goals>
-                            <phase>package</phase>
-                            <configuration>
-                                <target>
-                                    <copy file="${project.build.directory}/${project.build.finalName}.jar"
-                                          todir="${docker.build.directory}/lib"/>
-                                </target>
-                            </configuration>
-                        </execution>
-                    </executions>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-dependency-plugin</artifactId>
-                    <executions>
-                        <!-- Кладём проектные зависимости приложения в ext -->
-                        <execution>
-                            <id>copy-external-dependencies</id>
-                            <phase>package</phase>
-                            <goals>
-                                <goal>copy-dependencies</goal>
-                            </goals>
-                            <configuration>
-                                <excludeGroupIds>ru.invest.api</excludeGroupIds>
-                                <excludeArtifactIds>${project.artifactId}</excludeArtifactIds>
-                                <outputDirectory>${docker.build.directory}/ext</outputDirectory>
-                                <includeScope>runtime</includeScope>
-                            </configuration>
-                        </execution>
-                        <!-- Кладём проектные зависимости приложения в lib -->
-                        <execution>
-                            <id>copy-project-dependencies</id>
-                            <phase>package</phase>
-                            <goals>
-                                <goal>copy-dependencies</goal>
-                            </goals>
-                            <configuration>
-                                <includeGroupIds>ru.invest.api</includeGroupIds>
-                                <outputDirectory>${docker.build.directory}/lib</outputDirectory>
-                                <includeScope>runtime</includeScope>
-                            </configuration>
-                        </execution>
-                    </executions>
-                </plugin>
-            </plugins>
-        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
