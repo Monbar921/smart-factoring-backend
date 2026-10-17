@@ -1,0 +1,30 @@
+server:
+  port: 8099
+spring:
+  cloud:
+    openfeign:
+      autoconfiguration:
+        jackson:
+          enabled: true
+  datasource:
+    hikari:
+      connection-test-query: select 1
+      connection-init-sql: SET search_path TO public
+      connection-timeout: 30000
+      driver-class-name: org.postgresql.Driver
+      idle-timeout: 30000
+      max-lifetime: 40000
+      maximum-pool-size: 15
+      minimum-idle: 15
+      pool-name: postgres
+      password: password
+      jdbc-url: jdbc:postgresql://localhost:5432/postgres
+      username: username
+  liquibase:
+    change-log: classpath:liquibase/db.changelog-master.xml
+    parameters:
+      appUsername: ${spring.datasource.hikari.username}
+      schema: public
+      sql_schema: public
+    enabled: true
+    default-schema: public

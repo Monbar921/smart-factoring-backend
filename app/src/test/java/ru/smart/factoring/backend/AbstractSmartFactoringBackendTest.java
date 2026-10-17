@@ -38,9 +38,9 @@ public abstract class AbstractSmartFactoringBackendTest {
         public void initialize(final ConfigurableApplicationContext configurableApplicationContext) {
             TestPropertyValues
                     .of(
-                            "spring.datasource.url=" + postgreSQLContainer.getJdbcUrl(),
-                            "spring.datasource.username=" + postgreSQLContainer.getUsername(),
-                            "spring.datasource.password=" + postgreSQLContainer.getPassword()
+                            "spring.datasource.hikari.jdbc-url=" + postgreSQLContainer.getJdbcUrl(),
+                            "spring.datasource.hikari.username=" + postgreSQLContainer.getUsername(),
+                            "spring.datasource.hikari.password=" + postgreSQLContainer.getPassword()
                     )
                     .applyTo(configurableApplicationContext.getEnvironment());
         }

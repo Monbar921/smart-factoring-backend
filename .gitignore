@@ -16,8 +16,6 @@ target/
 *.ipr
 *.flattened-pom.xml
 
-app/src/test/resources/application.yml
-
 ### Eclipse ###
 .apt_generated
 .classpath
