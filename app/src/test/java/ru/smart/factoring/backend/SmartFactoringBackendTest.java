@@ -2,9 +2,9 @@ package ru.smart.factoring.backend;
 
 import org.junit.jupiter.api.Test;
 
-public class SmartFactoringbackendTest extends AbstractSmartFactoringbackendTest{
+public class SmartFactoringBackendTest extends AbstractSmartFactoringBackendTest {
     @Test
-    public void testInit(){
+    public void testInit() {
         System.out.println("Started");
     }
 }
