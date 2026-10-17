@@ -1,0 +1,98 @@
+<!DOCTYPE module PUBLIC
+        "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+        "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<module name="Checker">
+<!--    Для старых проектов поменять на warning-->
+    <property name="severity" value="error" />
+    <module name="TreeWalker">
+
+<!--        Имена абстрактных классов должны начинаться с Abstract-->
+        <module name="AbstractClassName" />
+<!--        Аргумент в catch должен быть e, t или exception-->
+        <module name="CatchParameterName">
+            <property name="format" value="^(e|t|exception)$" />
+        </module>
+        <!-- Параметризированные классы должны иметь одну заглавную букву в параметре или формата TName-->
+        <module name="ClassTypeParameterName">
+            <property name="format" value="^(([A-Z]{1})|(T[A-Z]{1}[a-z]{0,}))$"/>
+        </module>
+        <module name="MethodTypeParameterName">
+            <property name="format" value="^(([A-Z]{1})|(T[A-Z]{1}[a-z]{0,}))$"/>
+        </module>
+<!--        Имена констант должны быть uppercase-->
+        <module name="ConstantName">
+            <property name="format" value="^[A-Z][A-Z0-9_]*$" />
+        </module>
+<!--        Порядок определения:-->
+<!--        Переменные static -> public -> protected -> private-->
+<!--        Конструктор-->
+<!--        Методы-->
+        <module name="DeclarationOrder" />
+<!--        default в switch/case всегда последний-->
+        <module name="DefaultComesLast" />
+<!--        Не должно быть пустных catch блоков-->
+        <module name="EmptyCatchBlock" />
+<!--        Не должно быть ; после if, for, while-->
+        <module name="EmptyStatement" />
+<!--        Переменные которые не меняют ссылку должны быть final-->
+        <module name="FinalLocalVariable" />
+<!--        Проверка на пробелы в дженериках-->
+        <module name="GenericWhitespace" />
+<!--        У утилит не должно быть public конструктора-->
+        <module name="HideUtilityClassConstructor" />
+<!--        Нельзя ловить в catch Exception/Throwable-->
+        <module name="IllegalCatch" />
+<!--        Inner классы должны быть после всех конструкций-->
+        <module name="InnerTypeLast" />
+<!--        Проверка имени типа типизированного интерфейса-->
+        <module name="InterfaceTypeParameterName">
+            <property name="format" value="^(([A-Z]{1})|(T[A-Z]{1}[a-z]{0,}))$"/>
+        </module>
+<!--        Все { должны быть на этой же строке что и конструкция-->
+        <module name="LeftCurly" />
+<!--        Все поля exception должны быть final-->
+        <module name="MutableException" />
+<!--        Максимальная вложенность цикла - 1-->
+        <module name="NestedForDepth" />
+<!--        Порядок перегруженных методов-->
+        <module name="OverloadMethodsDeclarationOrder" />
+<!--        Параметры метода должны соотвествовать ^[a-z][a-zA-Z0-9]*$-->
+        <module name="ParameterName" />
+<!--        Не должно быть пробела между параметром и скобкой-->
+        <module name="ParenPad" />
+<!--        Не должно быть усложненных boolean выражений-->
+        <module name="SimplifyBooleanExpression" />
+<!--        Не должно быть избыточно усложненных boolean выражений в return-->
+        <module name="SimplifyBooleanReturn" />
+<!--        Нельзя сравнивать строки через ==-->
+        <module name="StringLiteralEquality" />
+<!--        Не долно быть пробелов в приведении типов-->
+        <module name="TypecastParenPad" />
+<!--        Имена типов должны соответствовать ^[A-Z][a-zA-Z0-9]*$-->
+        <module name="TypeName" />
+<!--        Не должно быть лишних скобок-->
+        <module name="UnnecessaryParentheses" />
+<!--        Нельзя использовать вне констант числа в качестве переменных-->
+        <module name="MagicNumber" />
+<!--        Для использования @SuppressWarnings("checkstyle:module_name")-->
+        <module name="SuppressWarningsHolder" />
+        <!--  Запрещаем wildcard import  -->
+        <module name="AvoidStarImport" />
+        <!-- Проверка неиспользуемых импортов -->
+        <module name="UnusedImports"/>
+    </module>
+
+    <!--        Не должно быть табов-->
+    <module name="FileTabCharacter"/>
+    <!--        Длина линии 150 символов-->
+    <module name="LineLength">
+        <property name="max" value="150"/>
+    </module>
+    <!--        Для использования @SuppressWarnings("checkstyle:module_name")-->
+    <module name="SuppressWarningsFilter" />
+    <!--        В конце файла должна быть пустая линия, используем только LF перевод строк-->
+    <module name="NewlineAtEndOfFile">
+        <property name="lineSeparator" value="lf"/>
+    </module>
+</module>

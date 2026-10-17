@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+echo "Running project build"
+
+mvn clean install
+
+echo "Completed project build"

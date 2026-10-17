@@ -1,0 +1,89 @@
+invest:
+  enabled: true
+  connector:
+    token: $TOKEN
+    # retry из SDK: повторяет только RESOURCE_EXHAUSTED, ждёт до сброса лимита (x-ratelimit-reset)
+    connection:
+      retry:
+        max-attempts: 3
+        wait-duration: 2000
+  # клиентские лимиты по методам, лимиты сервера: developer.tbank.ru/invest/intro/intro/limits
+  rate-limiter:
+    bond-coupons:
+      requests: 3
+      period: 1s
+    bonds:
+      requests: 1
+      period: 5s
+    last-prices:
+      requests: 9
+      period: 1s
+    default-limit:
+      requests: 1
+      period: 1s
+    timeout: 60s
+    max-concurrent-calls: 25
+
+ru:
+  invest:
+    api:
+      stock:
+        supplier:
+          scheduler:
+            # ночная цепочка: облигации -> купоны -> цены + доходность купонов
+            sync:
+              enabled: true
+              cron: "0 0 3 * * *"
+              zone: Europe/Moscow
+              steps:
+                bond: false
+                coupon: false
+                price: true
+            # частое обновление цен и доходности в торговые часы
+            price:
+              enabled: false
+              cron: "0 */15 7-23 * * MON-FRI"
+              zone: Europe/Moscow
+
+spring:
+  cache:
+    type: caffeine
+  cloud:
+    openfeign:
+      autoconfiguration:
+        jackson:
+          enabled: true
+      client:
+        config:
+          cb-rf-client:
+            enabled: true
+            url: https://www.cbr.ru/
+          budget-org-client:
+            enabled: true
+            url: https://api.budjet.org/
+  datasource:
+    hikari:
+      connection-test-query: select 1
+      connection-init-sql: SET search_path TO $DB_SCHEMA
+      connection-timeout: 30000
+      driver-class-name: org.postgresql.Driver
+      idle-timeout: 30000
+      max-lifetime: 40000
+      maximum-pool-size: 15
+      minimum-idle: 15
+      pool-name: postgres
+      jdbc-url: jdbc:postgresql://$DB_HOST:DB_PORT/$DB_NAME
+      username: $DB_USERNAME
+      password: $DB_PASSWORD
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html

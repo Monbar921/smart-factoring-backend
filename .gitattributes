@@ -1,0 +1,16 @@
+# Все текстовые файлы хранятся и выкачиваются с LF, независимо от core.autocrlf у разработчика
+# (checkstyle NewlineAtEndOfFile требует lineSeparator=lf)
+* text=auto eol=lf
+
+# Windows-скрипты должны оставаться с CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Бинарные файлы не трогаем
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
