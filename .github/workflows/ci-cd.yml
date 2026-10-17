@@ -1,0 +1,160 @@
+name: CI/CD
+
+# Логика по событиям:
+#   pull request в main -> сборка, checkstyle и тесты
+#   push в main         -> + образ в ghcr.io (теги: <short sha>, latest)
+#                          + repository_dispatch в deploy-репозиторий, который раскатывает образ на VDS
+#
+# Настройки репозитория (Settings -> Secrets and variables -> Actions):
+#   vars.DEPLOY_REPO     - deploy-репозиторий, owner/name
+#   secrets.DEPLOY_TOKEN - fine-grained PAT с доступом только к DEPLOY_REPO, Contents: Read and write
+on:
+  push:
+    branches: [ "main", "test" ]
+  pull_request:
+    branches: [ "main", "test" ]
+  workflow_dispatch:
+
+# новый push в ту же ветку/PR отменяет незавершённую сборку предыдущего
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  JAVA_VERSION: "25"
+
+jobs:
+  build:
+    name: Build & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      # checkstyle (validate), тесты (Testcontainers использует Docker раннера)
+      # и исполняемый jar app/target/app.jar (package)
+      - name: Build, checkstyle and tests
+        run: mvn -B -ntp verify
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: "**/target/surefire-reports/"
+          retention-days: 7
+
+      - name: Upload application jar
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-jar
+          path: app/target/app.jar
+          if-no-files-found: error
+          retention-days: 3
+
+  image:
+    name: Build & push image
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.name }}
+      tag: ${{ steps.name.outputs.tag }}
+      digest: ${{ steps.push.outputs.digest }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download application jar
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jar
+          path: app/target
+
+      # ghcr.io принимает имена только в нижнем регистре
+      - name: Image name and tag
+        id: name
+        run: |
+          echo "name=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.name.outputs.name }}
+          tags: |
+            type=raw,value=${{ steps.name.outputs.tag }}
+            type=raw,value=latest
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Trigger deploy
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # GITHUB_TOKEN не даёт прав на другие репозитории, поэтому отдельный DEPLOY_TOKEN.
+      # Передаём неизменяемый тег (sha) и digest, а не latest: на VDS едет ровно проверенная сборка,
+      # откат - повторный dispatch со старым тегом
+      - name: Dispatch to deploy repository
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          DEPLOY_REPO: ${{ vars.DEPLOY_REPO }}
+          IMAGE: ${{ needs.image.outputs.image }}
+          TAG: ${{ needs.image.outputs.tag }}
+          DIGEST: ${{ needs.image.outputs.digest }}
+        run: |
+          if [ -z "$DEPLOY_REPO" ] || [ -z "$GH_TOKEN" ]; then
+            echo "::error::Не заданы vars.DEPLOY_REPO и/или secrets.DEPLOY_TOKEN"
+            exit 1
+          fi
+          jq -n \
+            --arg service "${GITHUB_REPOSITORY#*/}" \
+            --arg image "$IMAGE" \
+            --arg tag "$TAG" \
+            --arg digest "$DIGEST" \
+            --arg sha "$GITHUB_SHA" \
+            '{event_type: "deploy", client_payload: {service: $service, image: $image, tag: $tag, digest: $digest, sha: $sha}}' \
+          | gh api "repos/${DEPLOY_REPO}/dispatches" --input -
+          echo "Dispatched ${IMAGE}:${TAG} to ${DEPLOY_REPO}" >> "$GITHUB_STEP_SUMMARY"

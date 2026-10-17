@@ -11,7 +11,8 @@ import ru.smart.factoring.backend.client.SmartFactoringBackendClient;
 
 @Configuration
 @ConditionalOnBean(annotation = ru.smart.factoring.backend.annotation.SmartFactoringBackendClient.class)
-public class SmartFactoringBackendClientAutoConfiguration extends AbstractClientAutoConfiguration<ru.smart.factoring.backend.annotation.SmartFactoringBackendClient> {
+public class SmartFactoringBackendClientAutoConfiguration
+        extends AbstractClientAutoConfiguration<ru.smart.factoring.backend.annotation.SmartFactoringBackendClient> {
     public SmartFactoringBackendClientAutoConfiguration(final Environment environment,
                                                         final ApplicationContext applicationContext) {
         super(environment, applicationContext, ru.smart.factoring.backend.annotation.SmartFactoringBackendClient.class);
