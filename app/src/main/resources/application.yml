@@ -15,7 +15,7 @@ spring:
       max-lifetime: 40000
       maximum-pool-size: 10
       minimum-idle: 2
-      pool-name:  ${POSTGRES_POOL}
+      pool-name: ${POSTGRES_POOL:smart_factoring_backend}
       password: ${POSTGRES_PASSWORD}
       jdbc-url: ${POSTGRES_JDBC}
       username: ${POSTGRES_USER}
