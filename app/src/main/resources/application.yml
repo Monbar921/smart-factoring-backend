@@ -1,10 +1,27 @@
-# Настройки, общие для всех стендов. Подключение к БД приходит снаружи:
-# переменные SPRING_DATASOURCE_HIKARI_* из docker-compose.yml в smart-factoring-deploy.
+# Настройки, общие для всех стендов. Значения ${...} Spring берёт из переменных окружения контейнера
+# (environment в docker-compose.yml в smart-factoring-deploy), после ':' - значение по умолчанию.
 # В тестах этот файл перекрывается app/src/test/resources/application.yml
 spring:
+  application:
+    name: smart-factoring-backend
+  datasource:
+    hikari:
+      # statement_timeout (мс) - сервер сам отменяет запрос дольше 30 с
+      connection-init-sql: "set search_path to ${POSTGRES_SCHEMA:public}; set statement_timeout to 30000;"
+      connection-test-query: select 1
+      connection-timeout: 30000
+      driver-class-name: org.postgresql.Driver
+      idle-timeout: 30000
+      max-lifetime: 40000
+      maximum-pool-size: 10
+      minimum-idle: 2
+      pool-name:  ${POSTGRES_POOL}
+      password: ${POSTGRES_PASSWORD}
+      jdbc-url: ${POSTGRES_JDBC}
+      username: ${POSTGRES_USER}
   liquibase:
     change-log: classpath:liquibase/db.changelog-master.xml
-    default-schema: public
+    default-schema: ${POSTGRES_SCHEMA:public}
     parameters:
       appUsername: ${spring.datasource.hikari.username}
-      schema: public
+      schema: ${POSTGRES_SCHEMA:public}
