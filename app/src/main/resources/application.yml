@@ -1,6 +1,10 @@
 # Настройки, общие для всех стендов. Значения ${...} Spring берёт из переменных окружения контейнера
 # (environment в docker-compose.yml в smart-factoring-deploy), после ':' - значение по умолчанию.
 # В тестах этот файл перекрывается app/src/test/resources/application.yml
+server:
+  # на стенде - BACKEND_PORT из smart-factoring-deploy, compose передаёт его как SERVER_PORT
+  port: ${SERVER_PORT:8080}
+
 spring:
   application:
     name: smart-factoring-backend
