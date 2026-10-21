@@ -9,9 +9,16 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Optional;
+
 /**
- * Подставляет {@link JwtPayload} в параметры методов контроллеров.
- * Без токена - 401: через gateway такой запрос не пройдёт, значит, он пришёл в обход него.
+ * Подставляет {@link JwtPayload} в параметры методов контроллеров:
+ * <ul>
+ *     <li>{@code JwtPayload user} - нужен пользователь: без токена 401;</li>
+ *     <li>{@code @Nullable JwtPayload user} (org.jspecify.annotations.Nullable) - токена может не быть,
+ *     например при вызове из другого сервиса внутри сети: тогда null.</li>
+ * </ul>
+ * Методы без параметра JwtPayload токен не проверяют вообще.
  */
 public class JwtPayloadArgumentResolver implements HandlerMethodArgumentResolver {
     private final JwtPayloadReader reader;
@@ -30,7 +37,11 @@ public class JwtPayloadArgumentResolver implements HandlerMethodArgumentResolver
                                       final ModelAndViewContainer mavContainer,
                                       final NativeWebRequest webRequest,
                                       final WebDataBinderFactory binderFactory) {
-        return reader.read(webRequest.getHeader(HttpHeaders.AUTHORIZATION))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Нет JWT в заголовке Authorization"));
+        final Optional<JwtPayload> payload = reader.read(webRequest.getHeader(HttpHeaders.AUTHORIZATION));
+        // isOptional - параметр помечен аннотацией @Nullable
+        if (parameter.isOptional()) {
+            return payload.orElse(null);
+        }
+        return payload.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Нет JWT в заголовке Authorization"));
     }
 }

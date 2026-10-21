@@ -1,9 +1,12 @@
 package ru.smart.factoring.backend.security;
 
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 import ru.smart.factoring.backend.ui.service.controller.MaintenanceController;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -12,6 +15,7 @@ import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -27,7 +31,7 @@ class JwtPayloadTest {
 
     private final JwtPayloadReader reader = new JwtPayloadReader(JsonMapper.builder().build());
 
-    private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new MaintenanceController())
+    private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new MaintenanceController(), new OptionalUserController())
             .setCustomArgumentResolvers(new JwtPayloadArgumentResolver(reader))
             .build();
 
@@ -92,5 +96,36 @@ class JwtPayloadTest {
         return base64.encodeToString("{\"alg\":\"RS256\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8))
                 + "." + base64.encodeToString(payload.getBytes(StandardCharsets.UTF_8))
                 + ".c2lnbmF0dXJl";
+    }
+
+    @Test
+    void nullablePayloadIsNullWithoutToken() throws Exception {
+        mockMvc.perform(get("/test/optional-user"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("anonymous"));
+    }
+
+    @Test
+    void nullablePayloadIsFilledWithToken() throws Exception {
+        mockMvc.perform(get("/test/optional-user").header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt(PAYLOAD)))
+                .andExpect(status().isOk())
+                .andExpect(content().string("tester"));
+    }
+
+    @Test
+    void methodWithoutPayloadDoesNotNeedToken() throws Exception {
+        mockMvc.perform(get("/internal/rest/maintenance/hello"))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * Метод, который зовут и пользователи через gateway, и другие сервисы внутри сети без токена.
+     */
+    @RestController
+    static class OptionalUserController {
+        @GetMapping("/test/optional-user")
+        String user(final @Nullable JwtPayload user) {
+            return user != null ? user.username() : "anonymous";
+        }
     }
 }
