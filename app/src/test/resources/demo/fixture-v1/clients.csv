@@ -1,0 +1,9 @@
+inn;name;industry;okved_section;region;abs_liquidity;ar_turnover_days;is_core;manager_code;edo_consent;factoring_client;control_case
+7710000001;"ООО ""Альфа-Трейд""";TRADE;G;Москва;0.35;75;false;M1;true;false;K-1,K-5,K-7,K-15
+7710000002;"ООО ""СтройМонтаж""";CONSTRUCTION;F;Москва;0.15;120;true;M1;true;false;K-14,K-6
+7710000003;"ООО ""ПромТех""";MANUFACTURING;C;Московская область;0.50;65;false;M1;true;false;K-4,K-10,K-12,K-18
+7710000004;"ООО ""Проект-Консалт""";PROFESSIONAL;M;Москва;0.10;110;true;M1;true;false;K-8,K-12,K-18
+7710000005;"ООО ""Торговый дом Вектор""";TRADE;G;Москва;0.25;80;false;M1;true;false;K-12,K-13
+7710000006;"ООО ""МеталлСервис""";MANUFACTURING;C;Московская область;0.30;95;false;M1;true;false;K-9,K-12
+7710000007;"ООО ""Уже-Факторинг""";TRADE;G;Москва;0.40;60;false;M1;true;true;
+7710000008;"ООО ""Без-Согласия""";TRADE;G;Москва;0.40;60;false;M1;false;false;

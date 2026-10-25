@@ -95,7 +95,8 @@ uk(`client_inn`, `number`).
 `declared_bankrupt_on`, `receivership_from`, `end_date`, `outcome`, `first_intent_date`; uk(`inn`, `case_number`).
 
 **`demo_efrsb_event`** — `id`, `inn`, `case_number`, `event_type`, `event`, `details`, `event_date`, `published_on`,
-`message_number` uk, `annulled bool`, `url`.
+`message_number`, `annulled bool`, `url`; uk(`inn`, `case_number`, `message_number`, `event_type`, `event`) —
+номер сообщения сам по себе не уникален: одно сообщение даёт несколько строк (судебный акт и стадия процедуры).
 
 ### Получатели (имитации)
 

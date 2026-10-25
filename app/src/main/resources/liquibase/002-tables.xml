@@ -200,6 +200,19 @@
         </sql>
     </changeSet>
 
+    <!--
+        Номер сообщения в events.csv не уникален: одно сообщение даёт несколько строк
+        (например, «Судебный акт» и выведенная из него «Стадия процедуры» с началом и окончанием).
+        Уникальна строка по ИНН, делу (бывает пустым), номеру сообщения, типу и событию.
+    -->
+    <changeSet id="SMF-33-demo-efrsb-event-natural-key" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".demo_efrsb_event drop constraint demo_efrsb_event_message_number_key;
+            create unique index ux_demo_efrsb_event on "${schema}".demo_efrsb_event
+                (inn, coalesce(case_number, ''), message_number, coalesce(event_type, ''), coalesce(event, ''));
+        </sql>
+    </changeSet>
+
     <!-- ============================== demo: получатели ============================== -->
 
     <changeSet id="SMF-33-demo-receivers" author="Monbar921">
