@@ -4,4 +4,52 @@
         xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
 
+    <!--
+        Параметры Приложения А BRD 2.1. Значения "демо" условные.
+        on conflict do nothing: значения, изменённые на стенде, повторный накат не перетирает.
+        Доли и ставки - в долях единицы (0.16 = 16% годовых), суммы - в рублях.
+    -->
+    <changeSet id="SMF-33-parameter-defaults" author="Monbar921">
+        <sql endDelimiter=";">
+            insert into "${schema}".parameter (code, value, value_type, section, description)
+            values
+                -- запуск и надёжность
+                ('run.max_duration_minutes', '10', 'INTEGER', 'RUN', 'Максимальное время прогона по демо-набору, мин (НФР-1.1)'),
+                ('run.upd_retry_count', '2', 'INTEGER', 'RUN', 'Число повторов обработки УПД при сбое (НФР-3)'),
+                -- скоринг
+                ('scoring.pd_revenue_threshold', '120000000', 'DECIMAL', 'SCORING', 'Порог выручки модели PD, ниже - базовый PD и пометка «мало данных» (п. 4.2)'),
+                ('scoring.delay_threshold_days', '14', 'INTEGER', 'SCORING', 'Порог задержки, дней; допустимы 7, 14, 30 (п. 4.3, 4.4, 5.2)'),
+                ('scoring.risk_level_bounds', '{"A": 0.01, "B": 0.03, "C": 0.08}', 'JSON', 'SCORING', 'Верхние границы PD уровней A-C, выше C - уровень D (Р-13, условные до модели PD)'),
+                -- решение и предложение
+                ('decision.advance_rate', '{"A": 0.90, "B": 0.85, "C": 0.75}', 'JSON', 'DECISION', 'Доля аванса по уровню риска; при вероятной задержке - доля уровнем ниже (п. 5.1)'),
+                ('decision.lgd', '{"A": 0.40, "B": 0.45, "C": 0.50}', 'JSON', 'DECISION', 'LGD по уровню риска (п. 5.1)'),
+                ('decision.funding_rate', '0.16', 'DECIMAL', 'DECISION', 'Ставка фондирования, годовых (п. 5.1)'),
+                ('decision.opex_rate', '0.015', 'DECIMAL', 'DECISION', 'Ставка операционных расходов, годовых (п. 5.1)'),
+                ('decision.margin_rate', '0.03', 'DECIMAL', 'DECISION', 'Ставка маржи банка, годовых (п. 5.1)'),
+                ('decision.market_rate', '0.24', 'DECIMAL', 'DECISION', 'Рыночная цена - потолок цены для клиента, годовых (п. 5.1)'),
+                ('decision.day_count_basis', '365', 'INTEGER', 'DECISION', 'База начисления, дней (п. 5.1)'),
+                ('decision.delay_probability_threshold', '0.30', 'DECIMAL', 'DECISION', 'Порог вероятности задержки (п. 5.2)'),
+                ('decision.overdue_90_probability_threshold', '0.10', 'DECIMAL', 'DECISION', 'Порог вероятности просрочки 90+ (п. 5.2)'),
+                ('decision.min_income', '3000', 'DECIMAL', 'DECISION', 'Минимальный доход банка по предложению, руб. (п. 5.2)'),
+                ('decision.min_outstanding', '300000', 'DECIMAL', 'DECISION', 'Минимальный неоплаченный остаток УПД, руб. (п. 5.2)'),
+                ('decision.min_days_to_due', '10', 'INTEGER', 'DECISION', 'Минимум дней до оплаты (п. 5.2)'),
+                ('decision.buyer_limit', '{"A": 30000000, "B": 20000000, "C": 10000000}', 'JSON', 'DECISION', 'Лимит на покупателя по уровню риска по всем клиентам, руб. (п. 5.2, 5.3)'),
+                -- ранжирование и очередь менеджера
+                ('ranking.tr_base', '0.07', 'DECIMAL', 'RANKING', 'Базовое значение TR (п. 5.3, допущение)'),
+                ('ranking.tr_multiplier', '1.5', 'DECIMAL', 'RANKING', 'Повышающий коэффициент TR за каждый выполненный признак (п. 5.3)'),
+                ('ranking.tr_liquidity_threshold', '0.2', 'DECIMAL', 'RANKING', 'Признак TR: абсолютная ликвидность клиента ниже порога (п. 5.3)'),
+                ('ranking.tr_deferral_days_threshold', '60', 'INTEGER', 'RANKING', 'Признак TR: отсрочка по договору, дней, не меньше порога (п. 5.3)'),
+                ('ranking.offers_per_client', '3', 'INTEGER', 'RANKING', 'Лимит предложений на одного клиента в очереди менеджера (п. 5.3)'),
+                ('ranking.reminder_days', '3', 'INTEGER', 'RANKING', 'Срок напоминания менеджеру, дней (п. 5.3)'),
+                ('ranking.new_offer_notification_threshold', '1000000', 'DECIMAL', 'RANKING', 'Порог суммы предложения для уведомления менеджера, руб. (п. 5.4)'),
+                -- кассовый разрыв в карточке клиента
+                ('card.cash_gap_liquidity_threshold', '0.2', 'DECIMAL', 'CARD', 'Кассовый разрыв показывается при абсолютной ликвидности клиента ниже порога (Р-15)'),
+                -- сравнение с ручной работой
+                ('comparison.manual_minutes_per_client', '200', 'INTEGER', 'COMPARISON', 'Ручная проработка одного клиента, мин (ЭП-9, допущение)'),
+                ('comparison.system_minutes_per_client', '20', 'INTEGER', 'COMPARISON', 'Время менеджера на клиента с системой, мин (Ц-2, допущение)'),
+                ('comparison.workday_hours', '8', 'INTEGER', 'COMPARISON', 'Рабочий день менеджера, ч (допущение)')
+            on conflict (code) do nothing;
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

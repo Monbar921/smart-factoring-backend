@@ -11,7 +11,7 @@ spring:
   datasource:
     hikari:
       # statement_timeout (мс) - сервер сам отменяет запрос дольше 30 с
-      connection-init-sql: "set search_path to ${POSTGRES_SCHEMA:public}; set statement_timeout to 30000;"
+      connection-init-sql: "set search_path to ${POSTGRES_SCHEMA:smart_factoring_test}; set statement_timeout to 30000;"
       connection-test-query: select 1
       connection-timeout: 30000
       driver-class-name: org.postgresql.Driver
@@ -25,7 +25,7 @@ spring:
       username: ${POSTGRES_USER}
   liquibase:
     change-log: classpath:liquibase/db.changelog-master.xml
-    default-schema: ${POSTGRES_SCHEMA:public}
+    default-schema: ${POSTGRES_SCHEMA:smart_factoring_test}
     parameters:
       appUsername: ${spring.datasource.hikari.username}
-      schema: ${POSTGRES_SCHEMA:public}
+      schema: ${POSTGRES_SCHEMA:smart_factoring_test}

@@ -26,6 +26,7 @@ public abstract class AbstractSmartFactoringBackendTest {
             .withDatabaseName("smart_factoring")
             .withUsername("sa")
             .withPassword("sa")
+            .withInitScript("sql/init-schema.sql")
             .withNetwork(Network.SHARED)
             .withReuse(true);
 
