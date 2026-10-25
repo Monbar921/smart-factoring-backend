@@ -8,10 +8,11 @@ import java.time.Duration;
  * Настройки LLM (Р-12): причины оценки простым языком и черновик сообщения клиенту (п. 5.3).
  *
  * @param mode     stub - шаблонные тексты без LLM, gigachat - GigaChat, off - без текстов (карточка без черновика)
- * @param gigachat настройки GigaChat для mode = gigachat
+ * @param gigachat    настройки GigaChat для mode = gigachat
+ * @param parallelism одновременных запросов к LLM в прогоне
  */
 @ConfigurationProperties("smart-factoring.llm")
-public record LlmProperties(String mode, GigaChat gigachat) {
+public record LlmProperties(String mode, GigaChat gigachat, Integer parallelism) {
 
     /**
      * @param authKey  ключ авторизации (Base64 client_id:client_secret) из личного кабинета GigaChat API

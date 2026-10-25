@@ -1,6 +1,7 @@
 package ru.smart.factoring.backend.factoring.decision;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import ru.smart.factoring.backend.api.common.RiskLevel;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -37,6 +39,7 @@ public class DecisionStep implements RunStep {
     private final OfferPublisher publisher;
     private final Explainer explainer;
     private final TransactionTemplate transactionTemplate;
+    private final ThreadPoolTaskExecutor llmTaskExecutor;
 
     @Override
     public int stepNo() {
@@ -65,10 +68,7 @@ public class DecisionStep implements RunStep {
         final List<DecisionEngine.Decision> decisions = DecisionEngine.decide(candidates, limitRemaining(context, scoring),
                 context.getParameters());
 
-        final List<OfferPublisher.Offer> offers = decisions.stream()
-                .filter(DecisionEngine.Decision::offer)
-                .map(decision -> new OfferPublisher.Offer(decision, explainer.explain(decision)))
-                .toList();
+        final List<OfferPublisher.Offer> offers = explain(decisions.stream().filter(DecisionEngine.Decision::offer).toList());
         context.getModelVersions().put("llm", explainer.provider());
 
         final OfferPublisher.Published published = Objects.requireNonNull(transactionTemplate.execute(status -> {
@@ -77,6 +77,17 @@ public class DecisionStep implements RunStep {
             return result;
         }));
         return Result.done(metrics(context, decisions, offers, published));
+    }
+
+    /**
+     * Тексты LLM - параллельно (llmTaskExecutor): последовательно сотни вызовов GigaChat не уложились бы в НФР-1.1.
+     */
+    private List<OfferPublisher.Offer> explain(final List<DecisionEngine.Decision> decisions) {
+        final List<CompletableFuture<OfferPublisher.Offer>> futures = decisions.stream()
+                .map(decision -> CompletableFuture.supplyAsync(() -> new OfferPublisher.Offer(decision, explainer.explain(decision)),
+                        llmTaskExecutor))
+                .toList();
+        return futures.stream().map(CompletableFuture::join).toList();
     }
 
     /**

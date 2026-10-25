@@ -50,6 +50,8 @@ smart-factoring:
   llm:
     # stub - шаблонные тексты без LLM, gigachat - GigaChat, off - без черновика (Р-12)
     mode: ${LLM_MODE:stub}
+    # одновременных запросов к LLM: сотни карточек последовательно не уложатся в 10 минут (НФР-1.1)
+    parallelism: ${LLM_PARALLELISM:8}
     gigachat:
       auth-key: ${GIGACHAT_AUTH_KEY:}
       scope: ${GIGACHAT_SCOPE:GIGACHAT_API_PERS}
