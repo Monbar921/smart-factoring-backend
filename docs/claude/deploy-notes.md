@@ -50,6 +50,35 @@
 
 Сервис `ml` доступен только внутри сети стенда (без `ports`), как backend.
 
+## Роли Keycloak (Р-44)
+
+Gateway пускает к экрану процесса только с ролью realm `operator`, к эмулятору CRM — только с `manager`.
+**Роли нужно завести до выката нового gateway**, иначе тестовый пользователь получит 403 / «Нет доступа».
+
+Keycloak импортирует `infra/keycloak/realms/smart-factoring-test-realm.json` только если realm ещё нет, поэтому
+на существующем стенде — вручную (Admin Console → realm smart-factoring-test → Realm roles → Create role
+`operator` и `manager`; Users → тестовый пользователь → Role mapping → Assign role) или через `kcadm.sh`:
+
+```bash
+kcadm.sh create roles -r smart-factoring-test -s name=operator -s 'description=Экран процесса: импорт и запуск прогона'
+kcadm.sh create roles -r smart-factoring-test -s name=manager -s 'description=Эмулятор CRM: решения по предложениям'
+kcadm.sh add-roles -r smart-factoring-test --uusername "$KEYCLOAK_TEST_USER" --rolename operator --rolename manager
+```
+
+Для новых стендов — в realm-файл:
+
+```json
+"roles": { "realm": [
+  { "name": "user", "description": "Пользователь smart-factoring" },
+  { "name": "operator", "description": "Экран процесса: импорт демо-данных и запуск прогона" },
+  { "name": "manager", "description": "Эмулятор CRM: очередь, карточка клиента, решения по предложениям" }
+] },
+```
+
+и тестовому пользователю `"realmRoles": ["user", "operator", "manager"]`. Роли попадают в access token
+в `realm_access.roles` стандартным client scope `roles` — отдельная настройка клиентов не нужна.
+После выдачи ролей пользователю нужно перелогиниться (роли — в новом токене).
+
 ## GigaChat
 
 Сертификаты GigaChat выданы НУЦ Минцифры: корневой сертификат нужно добавить в truststore JVM образа backend
