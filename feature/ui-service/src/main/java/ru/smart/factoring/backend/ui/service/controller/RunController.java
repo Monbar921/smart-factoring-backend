@@ -14,6 +14,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ru.smart.factoring.backend.api.common.PageDto;
+import ru.smart.factoring.backend.api.details.FunnelStageDto;
+import ru.smart.factoring.backend.api.details.RunBuyerDto;
+import ru.smart.factoring.backend.api.details.RunClientDto;
+import ru.smart.factoring.backend.api.details.RunUpdDto;
+import ru.smart.factoring.backend.api.details.UpdTraceDto;
 import ru.smart.factoring.backend.api.run.InitiatorType;
 import ru.smart.factoring.backend.api.run.RunDefaultsDto;
 import ru.smart.factoring.backend.api.run.RunDto;
@@ -21,8 +26,11 @@ import ru.smart.factoring.backend.api.run.RunListItemDto;
 import ru.smart.factoring.backend.api.run.RunLogEntryDto;
 import ru.smart.factoring.backend.api.run.StartRunRequest;
 import ru.smart.factoring.backend.api.run.StartRunResponse;
+import ru.smart.factoring.backend.factoring.details.RunDetailsService;
 import ru.smart.factoring.backend.factoring.run.RunService;
 import ru.smart.factoring.backend.security.JwtPayload;
+
+import java.util.List;
 
 /**
  * Экран процесса: запуск прогона, ход, история, журнал (ЭП-1…ЭП-9).
@@ -33,6 +41,7 @@ import ru.smart.factoring.backend.security.JwtPayload;
 @RequiredArgsConstructor
 public class RunController {
     private final RunService runService;
+    private final RunDetailsService runDetailsService;
 
     @GetMapping("/defaults")
     public RunDefaultsDto defaults() {
@@ -70,5 +79,50 @@ public class RunController {
                                        @RequestParam(defaultValue = "0") final int page,
                                        @RequestParam(defaultValue = "100") final int size) {
         return runService.log(runId, level, stepNo, page, size);
+    }
+
+    /**
+     * Воронка УПД (ЭП-4).
+     */
+    @GetMapping("/{runId}/funnel")
+    public List<FunnelStageDto> funnel(@PathVariable final long runId) {
+        return runDetailsService.funnel(runId);
+    }
+
+    /**
+     * Детализация УПД прогона с фильтрами (ЭП-5).
+     */
+    @GetMapping("/{runId}/upds")
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    public PageDto<RunUpdDto> upds(@PathVariable final long runId,
+                                   @RequestParam(required = false) final Long clientId,
+                                   @RequestParam(required = false) final Long buyerId,
+                                   @RequestParam(required = false) final Integer category,
+                                   @RequestParam(required = false) final String decision,
+                                   @RequestParam(required = false) final String reason,
+                                   @RequestParam(required = false) final String stage,
+                                   @RequestParam(required = false) final String riskLevel,
+                                   @RequestParam(required = false) final String paymentStatus,
+                                   @RequestParam(defaultValue = "0") final int page,
+                                   @RequestParam(defaultValue = "50") final int size) {
+        return runDetailsService.upds(runId, clientId, buyerId, category, decision, reason, stage, riskLevel, paymentStatus, page, size);
+    }
+
+    /**
+     * Путь УПД через шаги прогона (ЭП-5).
+     */
+    @GetMapping("/{runId}/upds/{updId}/trace")
+    public UpdTraceDto trace(@PathVariable final long runId, @PathVariable final long updId) {
+        return runDetailsService.trace(runId, updId);
+    }
+
+    @GetMapping("/{runId}/buyers")
+    public List<RunBuyerDto> buyers(@PathVariable final long runId) {
+        return runDetailsService.buyers(runId);
+    }
+
+    @GetMapping("/{runId}/clients")
+    public List<RunClientDto> clients(@PathVariable final long runId) {
+        return runDetailsService.clients(runId);
     }
 }

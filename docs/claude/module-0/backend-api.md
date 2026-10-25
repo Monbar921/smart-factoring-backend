@@ -88,13 +88,16 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
 
 ### `GET /runs/{id}/funnel` — воронка (ЭП-4)
 
+Массив ступеней по порядку: `OPEN`, `CATEGORY_1_4`, `HAS_DATA`, `NO_STOP_FACTOR`, `HAS_HISTORY`, `PASSED_RULES`, `TOP_N`, `QUEUED`;
+`count`/`amount` — сколько дошло до ступени, `dropped` — отсев на ней по причинам.
+
 ```json
-{ "stages": [
+[
   { "code": "OPEN", "title": "Открытые УПД", "count": 28, "amount": 87850000.00, "dropped": [] },
   { "code": "CATEGORY_1_4", "count": 24, "amount": 82350000.00, "dropped": [ { "reason": "UPD_OVERDUE", "count": 4, "amount": 4500000.00 } ] },
   { "code": "NO_STOP_FACTOR", "...": "..." },
-  { "code": "HAS_DATA" }, { "code": "HAS_HISTORY" }, { "code": "PASSED_RULES" }, { "code": "TOP_N" }, { "code": "QUEUED" }
-] }
+  { "code": "HAS_DATA" }, { "code": "...": "..." }
+]
 ```
 
 ### `GET /runs/{id}/upds` — детализация УПД (ЭП-5)
