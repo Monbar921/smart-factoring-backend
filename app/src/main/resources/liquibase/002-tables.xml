@@ -665,4 +665,13 @@
         </sql>
     </changeSet>
 
+    <!-- в control_case несколько меток через запятую: K-4,K-10,K-12,K-18 -->
+    <changeSet id="SMF-33-demo-control-case-length" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".demo_client alter column control_case type varchar(128);
+            alter table "${schema}".demo_upd alter column control_case type varchar(128);
+            alter table "${schema}".demo_payment alter column control_case type varchar(128);
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

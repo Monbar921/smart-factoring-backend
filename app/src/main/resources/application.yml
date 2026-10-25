@@ -29,3 +29,8 @@ spring:
     parameters:
       appUsername: ${spring.datasource.hikari.username}
       schema: ${POSTGRES_SCHEMA:smart_factoring_test}
+
+smart-factoring:
+  demo:
+    # каталог на сервере, из которого POST /demo/import берёт выгрузку генератора по относительному пути
+    import-dir: ${DEMO_IMPORT_DIR:/data/demo}

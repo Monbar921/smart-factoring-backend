@@ -1,10 +1,13 @@
 package ru.smart.factoring.backend.factoring.config;
 
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import ru.smart.factoring.backend.factoring.source.DemoProperties;
 
 @Configuration
+@EnableConfigurationProperties(DemoProperties.class)
 public class FactoringConfiguration {
 
     /**
