@@ -8,6 +8,11 @@ server:
 spring:
   application:
     name: smart-factoring-backend
+  servlet:
+    multipart:
+      # ZIP выгрузки генератора и events.csv (полный файл ЕФРСБ - десятки МБ)
+      max-file-size: 200MB
+      max-request-size: 200MB
   datasource:
     hikari:
       # statement_timeout (мс) - сервер сам отменяет запрос дольше 30 с
