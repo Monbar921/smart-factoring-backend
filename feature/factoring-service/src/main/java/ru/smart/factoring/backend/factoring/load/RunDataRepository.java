@@ -4,11 +4,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import ru.smart.factoring.backend.factoring.model.ClientInfo;
 import ru.smart.factoring.backend.factoring.model.Upd;
 import ru.smart.factoring.backend.factoring.reconciliation.Reconciliation;
 
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * УПД и платежи клиентов прогона не позже даты расчёта (ПР-9, Р-31) - вход блоков 2-5.
@@ -43,6 +46,17 @@ public class RunDataRepository {
                 (rs, rowNum) -> new Reconciliation.Payment(rs.getLong("id"), rs.getString("source_id"), rs.getLong("client_id"),
                         rs.getString("payer_inn"), rs.getBigDecimal("amount"), rs.getObject("payment_date", LocalDate.class),
                         rs.getString("purpose")));
+    }
+
+    public Map<Long, ClientInfo> clients(final RunScope scope) {
+        final Map<Long, ClientInfo> clients = new LinkedHashMap<>();
+        jdbc.query("select id, inn, name, industry, abs_liquidity, manager_id from client where id in (:clientIds) order by id",
+                params(scope, null),
+                rs -> {
+                    clients.put(rs.getLong("id"), new ClientInfo(rs.getLong("id"), rs.getString("inn"), rs.getString("name"),
+                            rs.getString("industry"), rs.getBigDecimal("abs_liquidity"), rs.getLong("manager_id")));
+                });
+        return clients;
     }
 
     private static MapSqlParameterSource params(final RunScope scope, final LocalDate calcDate) {

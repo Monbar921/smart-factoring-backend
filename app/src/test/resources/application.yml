@@ -33,3 +33,6 @@ smart-factoring:
   demo:
     # тесты запускаются из каталога модуля app
     import-dir: src/test/resources/demo
+  ml:
+    mode: stub
+    stub-scores-dir: src/test/resources/demo/fixture-v1

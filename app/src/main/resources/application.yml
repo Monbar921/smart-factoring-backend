@@ -34,3 +34,11 @@ smart-factoring:
   demo:
     # каталог на сервере, из которого POST /demo/import берёт выгрузку генератора по относительному пути
     import-dir: ${DEMO_IMPORT_DIR:/data/demo}
+  ml:
+    # http - сервис моделей smart-factoring-ml, stub - встроенная заглушка (Р-35)
+    mode: ${ML_MODE:stub}
+    base-url: ${ML_BASE_URL:http://smart-factoring-ml:8000}
+    timeout: 60s
+    batch-size: 200
+    # для stub: каталог с stub_buyer_scores.csv и stub_upd_scores.csv (необязательно)
+    stub-scores-dir: ${ML_STUB_SCORES_DIR:}

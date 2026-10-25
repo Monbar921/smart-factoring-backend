@@ -208,6 +208,7 @@ components:
       required: [upd_id, client_inn, buyer_inn, buyer_pd, amount, outstanding, upd_date, planned_due_date, deferral_days]
       properties:
         upd_id: { type: string, description: "Id УПД backend, возвращается в ответе" }
+        number: { type: string, description: "Номер УПД - для журнала и заглушки, в модели не используется" }
         client_inn: { type: string }
         client_industry: { type: string, nullable: true }
         buyer_inn: { type: string }
