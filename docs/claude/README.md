@@ -6,6 +6,10 @@
 | [02-decisions.md](02-decisions.md) | Архитектурные решения (предложенные и принятые) |
 | [03-implementation-plan.md](03-implementation-plan.md) | План по модулям, порядок, критерии готовности |
 | [04-open-questions.md](04-open-questions.md) | Открытые вопросы к постановщику |
+| [06-progress.md](06-progress.md) | Ход работ по модулям |
+| [07-report.md](07-report.md) | **Итоговый отчёт: что сделано, что проверено, что нужно решить** |
+| [deploy-notes.md](deploy-notes.md) | Что добавить в smart-factoring-deploy: сервис ml, переменные |
+| [tools/gen_perf_dataset.py](tools/gen_perf_dataset.py) | Генератор набора объёма демо для проверки времени прогона |
 | [05-module-0-plan.md](05-module-0-plan.md) | Детальный план модуля 0: модель данных, Liquibase, контракты |
 | [module-0/data-model.md](module-0/data-model.md) | Модель данных: основные таблицы и `demo_*`, ER-диаграмма |
 | [module-0/backend-api.md](module-0/backend-api.md) | Контракт API backend для UI и эмулятора CRM |
