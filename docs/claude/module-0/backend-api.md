@@ -33,15 +33,15 @@ UI берёт из своего словаря. Причины отказа: `UP
 {
   "dataDate": "2026-10-24",
   "snapshotDate": "2026-10-20",
-  "clients": [ { "id": 1, "inn": "7710000001", "name": "ООО «Альфа-Трейд»" } ],
+  "clients": [ { "id": null, "inn": "7710000001", "name": "ООО «Альфа-Трейд»" } ],
   "runningRunId": null
 }
 ```
 
 ### `POST /runs` — запуск (ПР-2, ПР-3)
 
-Запрос (оба поля необязательны): `{ "clientIds": [1, 3], "calcDate": "2026-10-24" }`.
-`clientIds` не задан — все клиенты; `calcDate` не задан — последняя дата данных.
+Запрос (оба поля необязательны): `{ "clientInns": ["7710000001"], "calcDate": "2026-10-24" }`.
+`clientInns` не задан (Р-29) — все клиенты; `calcDate` не задан — последняя дата данных.
 Ответ `202`: `{ "runId": 13 }`. Если прогон уже идёт — `409 RUN_ALREADY_RUNNING`.
 Инициатор берётся из JWT (`preferred_username`), тип — `OPERATOR` с экрана процесса, `API` при заголовке
 `X-Initiator-Type: API`.
@@ -62,7 +62,7 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
 
 ```json
 {
-  "id": 13, "status": "RUNNING", "calcDate": "2026-10-24", "clientIds": null,
+  "id": 13, "status": "RUNNING", "calcDate": "2026-10-24", "clientInns": null,
   "initiatorType": "OPERATOR", "initiator": "operator",
   "startedAt": "...", "finishedAt": null, "durationMs": 12000,
   "dataDate": "2026-10-24", "snapshotDate": "2026-10-20",

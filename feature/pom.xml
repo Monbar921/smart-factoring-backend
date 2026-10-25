@@ -12,6 +12,7 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>factoring-service</module>
         <module>ui-service</module>
     </modules>
 

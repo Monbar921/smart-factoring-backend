@@ -657,4 +657,12 @@
         </sql>
     </changeSet>
 
+    <!-- Р-29: прогон выбирает клиентов по ИНН - до первой загрузки клиенты есть только в источнике -->
+    <changeSet id="SMF-33-run-client-inns" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".run rename column client_ids to client_inns;
+            comment on column "${schema}".run.client_inns is 'ИНН клиентов прогона (ПР-2); null - все клиенты';
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

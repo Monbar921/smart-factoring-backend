@@ -18,6 +18,12 @@
         </dependency>
 
         <dependency>
+            <groupId>ru.smart.factoring.backend</groupId>
+            <artifactId>factoring-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
