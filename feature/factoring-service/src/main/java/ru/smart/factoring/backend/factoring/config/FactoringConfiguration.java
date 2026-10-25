@@ -4,6 +4,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import ru.smart.factoring.backend.factoring.llm.LlmProperties;
 import ru.smart.factoring.backend.factoring.ml.HttpModelClient;
 import ru.smart.factoring.backend.factoring.ml.ModelClient;
 import ru.smart.factoring.backend.factoring.ml.ModelProperties;
@@ -11,7 +12,7 @@ import ru.smart.factoring.backend.factoring.ml.StubModelClient;
 import ru.smart.factoring.backend.factoring.source.DemoProperties;
 
 @Configuration
-@EnableConfigurationProperties({DemoProperties.class, ModelProperties.class})
+@EnableConfigurationProperties({DemoProperties.class, ModelProperties.class, LlmProperties.class})
 public class FactoringConfiguration {
 
     /**

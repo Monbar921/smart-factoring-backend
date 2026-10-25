@@ -1,0 +1,168 @@
+package ru.smart.factoring.backend.factoring.llm;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Service;
+import ru.smart.factoring.backend.factoring.decision.DecisionEngine;
+import ru.smart.factoring.backend.factoring.decision.Explainer;
+import ru.smart.factoring.backend.factoring.ml.ModelClient;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+
+/**
+ * Тексты карточки предложения (п. 5.3, Р-12):
+ * <ul>
+ *     <li>stub - шаблонные тексты по фактам предложения, без LLM (по умолчанию, пока нет ключа GigaChat);</li>
+ *     <li>gigachat - GigaChat по промптам из classpath:llm/*.txt; ответы кешируются по хешу входа (Р-7), чтобы повторный
+ *     прогон не обращался к LLM и давал те же карточки;</li>
+ *     <li>off, а также сбой LLM - причины шаблоном, черновика нет: предложение не блокируется.</li>
+ * </ul>
+ */
+@Slf4j
+@Service
+public class ExplainerService implements Explainer {
+    private static final String PROMPT_VERSION = "v1";
+
+    private final LlmProperties properties;
+    private final NamedParameterJdbcTemplate jdbc;
+    private final GigaChatClient gigaChat;
+    private final String reasonsPrompt;
+    private final String draftPrompt;
+    private final Map<Long, String> buyerNames = new ConcurrentHashMap<>();
+
+    public ExplainerService(final LlmProperties properties, final NamedParameterJdbcTemplate jdbc) {
+        this.properties = properties;
+        this.jdbc = jdbc;
+        this.gigaChat = "gigachat".equals(mode()) ? new GigaChatClient(properties.gigachat()) : null;
+        this.reasonsPrompt = resource("llm/reasons-prompt.txt");
+        this.draftPrompt = resource("llm/draft-prompt.txt");
+    }
+
+    @Override
+    public String provider() {
+        return switch (mode()) {
+            case "gigachat" -> "gigachat:" + gigaChat.model() + ":" + PROMPT_VERSION;
+            case "off" -> "off";
+            default -> "stub";
+        };
+    }
+
+    @Override
+    @SuppressWarnings("checkstyle:IllegalCatch")
+    public Texts explain(final DecisionEngine.Decision decision) {
+        final ExplanationFacts facts = ExplanationFacts.of(decision, buyerName(decision.state().upd().buyerId()));
+        return switch (mode()) {
+            case "gigachat" -> {
+                final String hash = hash(provider() + "\n" + facts.describe());
+                final Texts cached = cached(hash);
+                if (cached != null) {
+                    yield cached;
+                }
+                try {
+                    final Texts texts = new Texts(gigaChat.complete(reasonsPrompt, facts.describe()),
+                            gigaChat.complete(draftPrompt, facts.describe()));
+                    cache(hash, texts);
+                    yield texts;
+                } catch (RuntimeException e) {
+                    log.warn("GigaChat недоступен, карточка {} без черновика: {}", facts.updNumber(), e.getMessage());
+                    yield new Texts(templateReasons(facts), null);
+                }
+            }
+            case "off" -> new Texts(templateReasons(facts), null);
+            default -> new Texts(templateReasons(facts), templateDraft(facts));
+        };
+    }
+
+    private String mode() {
+        return properties.mode() == null ? "stub" : properties.mode().toLowerCase(Locale.ROOT);
+    }
+
+    static String templateReasons(final ExplanationFacts facts) {
+        final StringBuilder text = new StringBuilder("Покупатель ").append(facts.buyerName()).append(": уровень риска ")
+                .append(facts.riskLevel()).append(", вероятность дефолта за год ").append(facts.pd()).append('.');
+        if (facts.lowData()) {
+            text.append(" Данных мало: оценка по отрасли и размеру компании.");
+        }
+        final List<ModelClient.Reason> reasons = facts.reasons();
+        final String lowers = reasons.stream().filter(reason -> !"INCREASES_RISK".equals(reason.direction()))
+                .map(reason -> lower(reason.title())).collect(Collectors.joining(", "));
+        final String raises = reasons.stream().filter(reason -> "INCREASES_RISK".equals(reason.direction()))
+                .map(reason -> lower(reason.title())).collect(Collectors.joining(", "));
+        if (!lowers.isEmpty()) {
+            text.append(" Снижают риск: ").append(lowers).append('.');
+        }
+        if (!raises.isEmpty()) {
+            text.append(" Повышают риск: ").append(raises).append('.');
+        }
+        if (facts.delayProbable()) {
+            text.append(" Вероятна задержка оплаты, поэтому аванс на ступень ниже.");
+        }
+        return text.toString();
+    }
+
+    static String templateDraft(final ExplanationFacts facts) {
+        return "Добрый день! По отгрузке покупателю " + facts.buyerName() + " (УПД № " + facts.updNumber() + " от " + facts.updDate()
+                + ") банк готов сразу выплатить " + facts.ead() + " руб., не дожидаясь оплаты от покупателя. Срок - " + facts.termDays()
+                + " дн., стоимость - " + facts.price() + " руб. (" + facts.priceRate() + " годовых). Если интересно, оформим "
+                + "факторинг в ВТБ Факторинге: от вас нужно только согласие.";
+    }
+
+    private static String lower(final String title) {
+        return title == null || title.isEmpty() ? "" : Character.toLowerCase(title.charAt(0)) + title.substring(1);
+    }
+
+    private String buyerName(final Long buyerId) {
+        if (buyerId == null) {
+            return "";
+        }
+        return buyerNames.computeIfAbsent(buyerId, id -> jdbc.queryForObject("select name from buyer where id = :id",
+                new MapSqlParameterSource("id", id), String.class));
+    }
+
+    private Texts cached(final String hash) {
+        return jdbc.query("select reasons_text, message_draft from llm_text_cache where input_hash = :hash",
+                        new MapSqlParameterSource("hash", hash),
+                        (rs, rowNum) -> new Texts(rs.getString("reasons_text"), rs.getString("message_draft")))
+                .stream().findFirst().orElse(null);
+    }
+
+    private void cache(final String hash, final Texts texts) {
+        jdbc.update("""
+                        insert into llm_text_cache (input_hash, provider, reasons_text, message_draft)
+                        values (:hash, :provider, :reasons, :draft)
+                        on conflict (input_hash) do nothing""",
+                new MapSqlParameterSource()
+                        .addValue("hash", hash)
+                        .addValue("provider", provider())
+                        .addValue("reasons", texts.reasonsText())
+                        .addValue("draft", texts.messageDraft()));
+    }
+
+    private static String hash(final String input) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static String resource(final String path) {
+        try {
+            return new ClassPathResource(path).getContentAsString(StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Нет промпта " + path, e);
+        }
+    }
+}

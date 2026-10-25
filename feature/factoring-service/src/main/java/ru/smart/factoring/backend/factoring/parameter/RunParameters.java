@@ -43,11 +43,12 @@ public record RunParameters(
     private static final RiskLevel[] BOUNDED_LEVELS = {RiskLevel.A, RiskLevel.B, RiskLevel.C};
 
     /**
-     * Уровень риска по PD: верхние границы A-C, не ниже границы C - уровень D (п. 4.4, Р-13).
+     * Уровень риска по PD: верхние границы A-C включительно, выше границы C - уровень D (п. 4.4, Р-13, Р-41).
+     * Включительно - как в примере BRD п. 5.1: PD 3% - уровень B.
      */
     public RiskLevel riskLevel(final BigDecimal pd) {
         for (final RiskLevel level : BOUNDED_LEVELS) {
-            if (pd.compareTo(riskLevelBounds.get(level)) < 0) {
+            if (pd.compareTo(riskLevelBounds.get(level)) <= 0) {
                 return level;
             }
         }

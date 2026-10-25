@@ -42,3 +42,13 @@ smart-factoring:
     batch-size: 200
     # для stub: каталог с stub_buyer_scores.csv и stub_upd_scores.csv (необязательно)
     stub-scores-dir: ${ML_STUB_SCORES_DIR:}
+  llm:
+    # stub - шаблонные тексты без LLM, gigachat - GigaChat, off - без черновика (Р-12)
+    mode: ${LLM_MODE:stub}
+    gigachat:
+      auth-key: ${GIGACHAT_AUTH_KEY:}
+      scope: ${GIGACHAT_SCOPE:GIGACHAT_API_PERS}
+      auth-url: ${GIGACHAT_AUTH_URL:https://ngw.devices.sberbank.ru:9443/api/v2/oauth}
+      api-url: ${GIGACHAT_API_URL:https://gigachat.devices.sberbank.ru/api/v1}
+      model: ${GIGACHAT_MODEL:GigaChat}
+      timeout: 30s
