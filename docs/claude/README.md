@@ -8,6 +8,8 @@
 | [04-open-questions.md](04-open-questions.md) | Открытые вопросы к постановщику |
 | [05-module-0-plan.md](05-module-0-plan.md) | Детальный план модуля 0: модель данных, Liquibase, контракты |
 | [module-0/data-model.md](module-0/data-model.md) | Модель данных: основные таблицы и `demo_*`, ER-диаграмма |
+| [module-0/backend-api.md](module-0/backend-api.md) | Контракт API backend для UI и эмулятора CRM |
+| [module-0/ml-service-openapi.yaml](module-0/ml-service-openapi.yaml) | Контракт сервиса моделей (OpenAPI) — для коллеги и заглушки |
 | [module-0/demo-dataset-format.md](module-0/demo-dataset-format.md) | Формат выгрузки генератора и `events.csv` — для коллеги и импорта |
 | [module-0/reference-sim/](module-0/reference-sim/) | Эталонные скрипты блоков 2–3 и 5 на Python: ожидаемые результаты фикстуры |
 | [../../app/src/test/resources/demo/fixture-v1/CASES.md](../../app/src/test/resources/demo/fixture-v1/CASES.md) | Фикстура: контрольные случаи К-1…К-18 и ожидаемые результаты |
