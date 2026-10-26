@@ -88,6 +88,9 @@ kcadm.sh add-roles -r smart-factoring-test --uusername "$KEYCLOAK_TEST_USER" --r
 
 ## GigaChat
 
+**Внесено в smart-factoring-deploy** (ветка `feature/CI_CD`): `LLM_MODE`, `GIGACHAT_SCOPE`, `GIGACHAT_AUTH_KEY`
+и `certs/` → `/certs` (`GIGACHAT_CA_CERT`) в backend; остальное в этом файле (сервис `ml`, демо-данные) — ещё нет.
+
 1. Ключ авторизации: личный кабинет GigaChat API (developers.sber.ru) → проект → «Получить ключ».
    Это Base64 `client_id:client_secret` — в секрет окружения `GIGACHAT_AUTH_KEY`, в git не класть.
 2. Сертификат: GigaChat использует сертификаты НУЦ Минцифры, которых нет в JDK. Скачать «Russian Trusted Root CA»
