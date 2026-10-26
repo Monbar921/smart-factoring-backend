@@ -15,6 +15,11 @@
 | `LLM_PARALLELISM` | `8` | одновременных запросов к LLM |
 | `GIGACHAT_AUTH_KEY` | пусто | ключ авторизации GigaChat API (секрет) |
 | `GIGACHAT_SCOPE` | `GIGACHAT_API_PERS` | тариф |
+| `GIGACHAT_CA_CERT` | пусто | путь к PEM корневого сертификата НУЦ Минцифры внутри контейнера (Р-49) |
+| `GIGACHAT_MODEL` | `GigaChat` | модель: `GigaChat`, `GigaChat-Pro`, `GigaChat-Max` — по тарифу |
+| `GIGACHAT_TIMEOUT` | `60s` | таймаут одного запроса |
+
+Сервису `ml` — `BACKEND_LLM_URL` (по умолчанию `http://backend:8080/internal/llm/v1`): LLM только через backend (Р-48).
 
 `POSTGRES_SCHEMA` на стенде — `smart_factoring_test` (схема создаётся заранее, приложение её не создаёт).
 
@@ -29,8 +34,10 @@
       ML_BASE_URL: http://ml:8000
       LLM_MODE: ${LLM_MODE:-stub}
       GIGACHAT_AUTH_KEY: ${GIGACHAT_AUTH_KEY:-}
+      GIGACHAT_CA_CERT: /certs/russian_trusted_root_ca.pem
     volumes:
       - ./demo:/data/demo:ro
+      - ./certs:/certs:ro
 
   ml:
     image: ghcr.io/monbar921/smart-factoring-ml:${ML_TAG:?ML_TAG is required}
@@ -81,5 +88,12 @@ kcadm.sh add-roles -r smart-factoring-test --uusername "$KEYCLOAK_TEST_USER" --r
 
 ## GigaChat
 
-Сертификаты GigaChat выданы НУЦ Минцифры: корневой сертификат нужно добавить в truststore JVM образа backend
-(или смонтировать truststore и задать `-Djavax.net.ssl.trustStore`), иначе TLS-рукопожатие не пройдёт.
+1. Ключ авторизации: личный кабинет GigaChat API (developers.sber.ru) → проект → «Получить ключ».
+   Это Base64 `client_id:client_secret` — в секрет окружения `GIGACHAT_AUTH_KEY`, в git не класть.
+2. Сертификат: GigaChat использует сертификаты НУЦ Минцифры, которых нет в JDK. Скачать «Russian Trusted Root CA»
+   (PEM) с портала Госуслуг (раздел про сертификаты НУЦ Минцифры) и положить на VDS в `certs/russian_trusted_root_ca.pem`
+   рядом с `docker-compose.yml` стенда. Backend читает его из `GIGACHAT_CA_CERT`, образ пересобирать не нужно (Р-49).
+3. Включить: `LLM_MODE=gigachat`. Без ключа backend не стартует — это намеренно, чтобы не уйти в молчаливую деградацию.
+4. Проверить до прогона: ручной тест `GigaChatManualTest` (см. его javadoc) или запрос к backend из сети стенда:
+   `curl -s -XPOST http://backend:8080/internal/llm/v1/chat/completions -H 'Content-Type: application/json'
+   -d '{"messages":[{"role":"user","content":"Привет"}]}'`.
