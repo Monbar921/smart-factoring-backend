@@ -42,6 +42,7 @@ public class ScoringStep implements RunStep {
     private static final String SCORED = "SCORED";
     private static final String NO_PAYMENT_HISTORY = "NO_PAYMENT_HISTORY";
     private static final String ERROR = "ERROR";
+    private static final String UNAVAILABLE = "unavailable";
 
     private final ModelClient modelClient;
     private final ModelProperties modelProperties;
@@ -64,11 +65,18 @@ public class ScoringStep implements RunStep {
         final RunScope scope = context.get(RunScope.class);
         final List<UpdState> states = context.get(CategorizationStep.UpdStates.class).states();
         final Map<Long, ClientInfo> clients = runData.clients(scope);
-        final ModelClient.Versions versions = modelClient.versions();
-        context.getModelVersions().put("pd", versions.pd());
-        context.getModelVersions().put("delay", versions.delay());
         final List<RunLog.Entry> log = new ArrayList<>();
         final long runId = context.getRunId();
+        // сервис моделей недоступен - прогон не падает: оценки дальше получат «ошибку оценки» (НФР-3)
+        final Attempt<ModelClient.Versions> versions = withRetries(context, modelClient::versions);
+        final String pdVersion = versions.value() != null ? versions.value().pd() : UNAVAILABLE;
+        final String delayVersion = versions.value() != null ? versions.value().delay() : UNAVAILABLE;
+        context.getModelVersions().put("pd", pdVersion);
+        context.getModelVersions().put("delay", delayVersion);
+        if (versions.value() == null) {
+            log.add(RunLog.Entry.of(runId, RunLog.Level.ERROR, STEP_NO, "SCORING_ERROR",
+                    "Версии моделей не получены: " + versions.error()));
+        }
 
         // покупатели открытых УПД из реестра; УПД без покупателя в реестре - «нет данных по покупателю» (п. 1.4)
         final Set<Long> buyerIds = states.stream()
@@ -97,9 +105,9 @@ public class ScoringStep implements RunStep {
                 toScore.add(buyer);
             }
         }
-        scorePd(context, versions.pd(), toScore, buyersWithHistory, buyerScores, log);
+        scorePd(context, pdVersion, toScore, buyersWithHistory, buyerScores, log);
 
-        final Map<Long, ScoringResult.UpdScore> updScores = scoreDelay(context, versions.delay(), states, clients, buyers, buyerScores,
+        final Map<Long, ScoringResult.UpdScore> updScores = scoreDelay(context, delayVersion, states, clients, buyers, buyerScores,
                 history, log);
 
         repository.saveBuyerScores(runId, buyerScores.values());
