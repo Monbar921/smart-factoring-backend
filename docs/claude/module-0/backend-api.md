@@ -209,3 +209,34 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
   Ответ: `{ batchId, dataDate, snapshotDate, rowCounts: {clients: 8, ...} }`; ошибки — `400 IMPORT_INVALID`.
 - `POST /demo/import/efrsb` — импорт `events.csv` (multipart `file` или `{ path }`). Ответ: `{ batchId, inns, cases, events }`.
 - `GET /parameters` — параметры Приложения А: `[ { code, value, valueType, section, description } ]`.
+
+---
+
+## LLM для сервиса моделей (Р-48)
+
+Не через gateway: `http://backend:8080/internal/llm/v1`, только из сети стенда. smart-factoring-ml к GigaChat
+напрямую не ходит.
+
+### `POST /internal/llm/v1/chat/completions`
+
+```json
+{
+  "messages": [ { "role": "system", "content": "…" }, { "role": "user", "content": "…" } ],
+  "temperature": 0.2,
+  "maxTokens": 300
+}
+```
+
+`role` — `system` / `user` / `assistant`; `temperature` 0..2 и `maxTokens` необязательны. Модель выбирает backend
+(`GIGACHAT_MODEL`). Ответ `200`:
+
+```json
+{ "content": "…", "model": "GigaChat:2.0.28.2", "finishReason": "stop", "promptTokens": 120, "completionTokens": 40 }
+```
+
+`finishReason = blacklist` — GigaChat заменил ответ из-за цензуры, текст использовать не стоит.
+
+Ошибки (ErrorDto): `400 VALIDATION_ERROR`; `503 LLM_DISABLED` — в backend `LLM_MODE` не `gigachat`;
+`503 LLM_UNAVAILABLE` — GigaChat не ответил после 3 попыток; `502 LLM_ERROR` — GigaChat отклонил запрос.
+На 503 сервис моделей должен работать без LLM.
+

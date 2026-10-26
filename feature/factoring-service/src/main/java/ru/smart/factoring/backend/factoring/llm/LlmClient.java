@@ -1,0 +1,41 @@
+package ru.smart.factoring.backend.factoring.llm;
+
+import java.util.List;
+
+/**
+ * Доступ к LLM для всего контура: тексты карточек в прогоне и запросы сервиса моделей через backend
+ * (smart-factoring-ml сам к GigaChat не ходит, ключ и лимиты - только в backend).
+ * <p>
+ * Сбои - ApiException с кодом LLM_DISABLED / LLM_UNAVAILABLE (503) или LLM_ERROR (502).
+ */
+public interface LlmClient {
+
+    /**
+     * Модель для журнала и версий (НФР-6), например GigaChat.
+     */
+    String model();
+
+    Completion complete(CompletionRequest request);
+
+    /**
+     * @param role system, user или assistant
+     */
+    record Message(String role, String content) {
+    }
+
+    /**
+     * @param temperature null - по умолчанию модели
+     * @param maxTokens   null - по умолчанию модели
+     */
+    record CompletionRequest(List<Message> messages, Double temperature, Integer maxTokens) {
+    }
+
+    /**
+     * @param finishReason stop, length, blacklist (ответ заменён из-за цензуры GigaChat) и др.
+     */
+    record Completion(String content, String model, String finishReason, Usage usage) {
+    }
+
+    record Usage(int promptTokens, int completionTokens, int totalTokens) {
+    }
+}

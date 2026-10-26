@@ -25,27 +25,32 @@ import java.util.stream.Collectors;
  * Тексты карточки предложения (п. 5.3, Р-12):
  * <ul>
  *     <li>stub - шаблонные тексты по фактам предложения, без LLM (по умолчанию, пока нет ключа GigaChat);</li>
- *     <li>gigachat - GigaChat по промптам из classpath:llm/*.txt; ответы кешируются по хешу входа (Р-7), чтобы повторный
- *     прогон не обращался к LLM и давал те же карточки;</li>
- *     <li>off, а также сбой LLM - причины шаблоном, черновика нет: предложение не блокируется.</li>
+ *     <li>gigachat - GigaChat ({@link LlmClient}) по промптам из classpath:llm/*.txt; ответы кешируются по хешу входа (Р-7),
+ *     чтобы повторный прогон не обращался к LLM и давал те же карточки;</li>
+ *     <li>off, а также сбой LLM или ответ, заменённый цензурой GigaChat, - причины шаблоном, черновика нет:
+ *     предложение не блокируется.</li>
  * </ul>
  */
 @Slf4j
 @Service
 public class ExplainerService implements Explainer {
     private static final String PROMPT_VERSION = "v1";
+    private static final double TEMPERATURE = 0.2;
+    private static final int MAX_TOKENS = 512;
+    /** finish_reason GigaChat: ответ заменён шаблонной фразой из-за цензуры */
+    private static final String BLACKLIST = "blacklist";
 
     private final LlmProperties properties;
     private final NamedParameterJdbcTemplate jdbc;
-    private final GigaChatClient gigaChat;
+    private final LlmClient llm;
     private final String reasonsPrompt;
     private final String draftPrompt;
     private final Map<Long, String> buyerNames = new ConcurrentHashMap<>();
 
-    public ExplainerService(final LlmProperties properties, final NamedParameterJdbcTemplate jdbc) {
+    public ExplainerService(final LlmProperties properties, final NamedParameterJdbcTemplate jdbc, final LlmClient llm) {
         this.properties = properties;
         this.jdbc = jdbc;
-        this.gigaChat = "gigachat".equals(mode()) ? new GigaChatClient(properties.gigachat()) : null;
+        this.llm = llm;
         this.reasonsPrompt = resource("llm/reasons-prompt.txt");
         this.draftPrompt = resource("llm/draft-prompt.txt");
     }
@@ -53,7 +58,7 @@ public class ExplainerService implements Explainer {
     @Override
     public String provider() {
         return switch (mode()) {
-            case "gigachat" -> "gigachat:" + gigaChat.model() + ":" + PROMPT_VERSION;
+            case "gigachat" -> "gigachat:" + llm.model() + ":" + PROMPT_VERSION;
             case "off" -> "off";
             default -> "stub";
         };
@@ -71,8 +76,7 @@ public class ExplainerService implements Explainer {
                     yield cached;
                 }
                 try {
-                    final Texts texts = new Texts(gigaChat.complete(reasonsPrompt, facts.describe()),
-                            gigaChat.complete(draftPrompt, facts.describe()));
+                    final Texts texts = new Texts(complete(reasonsPrompt, facts.describe()), complete(draftPrompt, facts.describe()));
                     cache(hash, texts);
                     yield texts;
                 } catch (RuntimeException e) {
@@ -83,6 +87,15 @@ public class ExplainerService implements Explainer {
             case "off" -> new Texts(templateReasons(facts), null);
             default -> new Texts(templateReasons(facts), templateDraft(facts));
         };
+    }
+
+    private String complete(final String systemPrompt, final String facts) {
+        final LlmClient.Completion completion = llm.complete(new LlmClient.CompletionRequest(
+                List.of(new LlmClient.Message("system", systemPrompt), new LlmClient.Message("user", facts)), TEMPERATURE, MAX_TOKENS));
+        if (BLACKLIST.equals(completion.finishReason())) {
+            throw new IllegalStateException("ответ заменён цензурой GigaChat");
+        }
+        return completion.content();
     }
 
     private String mode() {
