@@ -19,7 +19,7 @@
 | `GIGACHAT_MODEL` | `GigaChat` | модель: `GigaChat`, `GigaChat-Pro`, `GigaChat-Max` — по тарифу |
 | `GIGACHAT_TIMEOUT` | `60s` | таймаут одного запроса |
 
-Сервису `ml` — `BACKEND_LLM_URL` (по умолчанию `http://backend:8080/internal/llm/v1`): LLM только через backend (Р-48).
+Сервису `ml` — `BACKEND_LLM_URL` (по умолчанию `http://backend:8080/internal/rest/llm`): LLM только через backend (Р-48).
 
 `POSTGRES_SCHEMA` на стенде — `smart_factoring_test` (схема создаётся заранее, приложение её не создаёт).
 
@@ -95,5 +95,5 @@ kcadm.sh add-roles -r smart-factoring-test --uusername "$KEYCLOAK_TEST_USER" --r
    рядом с `docker-compose.yml` стенда. Backend читает его из `GIGACHAT_CA_CERT`, образ пересобирать не нужно (Р-49).
 3. Включить: `LLM_MODE=gigachat`. Без ключа backend не стартует — это намеренно, чтобы не уйти в молчаливую деградацию.
 4. Проверить до прогона: ручной тест `GigaChatManualTest` (см. его javadoc) или запрос к backend из сети стенда:
-   `curl -s -XPOST http://backend:8080/internal/llm/v1/chat/completions -H 'Content-Type: application/json'
+   `curl -s -XPOST http://backend:8080/internal/rest/llm/chat/completions -H 'Content-Type: application/json'
    -d '{"messages":[{"role":"user","content":"Привет"}]}'`.
