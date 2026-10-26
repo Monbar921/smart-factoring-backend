@@ -20,7 +20,7 @@ public record LlmProperties(String mode, GigaChat gigachat, Integer parallelism)
      * @param scope    GIGACHAT_API_PERS, GIGACHAT_API_B2B или GIGACHAT_API_CORP
      * @param authUrl  адрес выдачи токена OAuth
      * @param apiUrl   адрес API
-     * @param model    модель, например GigaChat
+     * @param model    поле model запроса: GigaChat (Lite), GigaChat-2-Pro, GigaChat-2-Max, GigaChat-3-Ultra
      * @param timeout  таймаут одного запроса
      * @param caCert   PEM-файл с корневым сертификатом НУЦ Минцифры; пусто - только сертификаты JDK
      */

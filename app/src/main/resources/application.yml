@@ -50,13 +50,16 @@ smart-factoring:
   llm:
     # stub - шаблонные тексты без LLM, gigachat - GigaChat, off - без черновика (Р-12)
     mode: ${LLM_MODE:stub}
-    # одновременных запросов к LLM: сотни карточек последовательно не уложатся в 10 минут (НФР-1.1)
+    # одновременных запросов к LLM: сотни карточек последовательно не уложатся в 10 минут (НФР-1.1);
+    # не больше лимита тарифа GigaChat (Freemium - 1 поток), иначе 429
     parallelism: ${LLM_PARALLELISM:8}
     gigachat:
       auth-key: ${GIGACHAT_AUTH_KEY:}
       scope: ${GIGACHAT_SCOPE:GIGACHAT_API_PERS}
       auth-url: ${GIGACHAT_AUTH_URL:https://ngw.devices.sberbank.ru:9443/api/v2/oauth}
-      api-url: ${GIGACHAT_API_URL:https://gigachat.devices.sberbank.ru/api/v1}
+      api-url: ${GIGACHAT_API_URL:https://api.giga.chat/v1}
+      # поле model запроса chat/completions: GigaChat (Lite), GigaChat-2-Pro, GigaChat-2-Max, GigaChat-3-Ultra;
+      # доступные тарифу - GET /models
       model: ${GIGACHAT_MODEL:GigaChat}
       timeout: ${GIGACHAT_TIMEOUT:60s}
       # PEM корневого сертификата НУЦ Минцифры (Russian Trusted Root CA): без него TLS к GigaChat не пройдёт
