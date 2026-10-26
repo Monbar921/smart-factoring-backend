@@ -21,7 +21,7 @@ class GigaChatManualTest {
     void answersInRussian() {
         final String scope = System.getenv().getOrDefault("GIGACHAT_SCOPE", "GIGACHAT_API_PERS");
         final GigaChatClient client = new GigaChatClient(new LlmProperties.GigaChat(System.getenv("GIGACHAT_AUTH_KEY"), scope,
-                "https://ngw.devices.sberbank.ru:9443/api/v2/oauth", "https://gigachat.devices.sberbank.ru/api/v1",
+                "https://ngw.devices.sberbank.ru:9443/api/v2/oauth", "https://api.giga.chat/v1",
                 System.getenv().getOrDefault("GIGACHAT_MODEL", "GigaChat"), Duration.ofSeconds(60), System.getenv("GIGACHAT_CA_CERT")), 1);
 
         final LlmClient.Completion completion = client.complete(new LlmClient.CompletionRequest(List.of(

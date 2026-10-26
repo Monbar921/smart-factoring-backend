@@ -12,11 +12,12 @@
 | `ML_BASE_URL` | `http://smart-factoring-ml:8000` | адрес сервиса моделей |
 | `ML_STUB_SCORES_DIR` | пусто | для `stub`: каталог со `stub_*_scores.csv` |
 | `LLM_MODE` | `stub` | `stub` — шаблонные тексты, `gigachat`, `off` — без черновика |
-| `LLM_PARALLELISM` | `8` | одновременных запросов к LLM |
+| `LLM_PARALLELISM` | `8` | одновременных запросов к LLM, не больше лимита тарифа (Freemium — `1`) |
 | `GIGACHAT_AUTH_KEY` | пусто | ключ авторизации GigaChat API (секрет) |
 | `GIGACHAT_SCOPE` | `GIGACHAT_API_PERS` | тариф |
 | `GIGACHAT_CA_CERT` | пусто | путь к PEM корневого сертификата НУЦ Минцифры внутри контейнера (Р-49) |
-| `GIGACHAT_MODEL` | `GigaChat` | модель: `GigaChat`, `GigaChat-Pro`, `GigaChat-Max` — по тарифу |
+| `GIGACHAT_MODEL` | `GigaChat` | поле `model` запроса: `GigaChat` (Lite), `GigaChat-2-Pro`, `GigaChat-2-Max`, `GigaChat-3-Ultra` — доступные тарифу показывает `GET /models` |
+| `GIGACHAT_API_URL` | `https://api.giga.chat/v1` | адрес API |
 | `GIGACHAT_TIMEOUT` | `60s` | таймаут одного запроса |
 
 Сервису `ml` — `BACKEND_LLM_URL` (по умолчанию `http://backend:8080/internal/rest/llm`): LLM только через backend (Р-48).
@@ -88,7 +89,7 @@ kcadm.sh add-roles -r smart-factoring-test --uusername "$KEYCLOAK_TEST_USER" --r
 
 ## GigaChat
 
-**Внесено в smart-factoring-deploy** (ветка `feature/CI_CD`): `LLM_MODE`, `GIGACHAT_SCOPE`, `GIGACHAT_AUTH_KEY`
+**Внесено в smart-factoring-deploy** (ветка `feature/CI_CD`): `LLM_MODE`, `LLM_PARALLELISM`, `GIGACHAT_MODEL`, `GIGACHAT_SCOPE`, `GIGACHAT_AUTH_KEY`
 и `certs/` → `/certs` (`GIGACHAT_CA_CERT`) в backend; остальное в этом файле (сервис `ml`, демо-данные) — ещё нет.
 
 1. Ключ авторизации: личный кабинет GigaChat API (developers.sber.ru) → проект → «Получить ключ».
