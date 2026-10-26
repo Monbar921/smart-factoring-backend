@@ -1,5 +1,9 @@
 # SMF-33. Что добавить в smart-factoring-deploy
 
+> **Внесено в smart-factoring-deploy** (ветка `feature/CI_CD`): сервис `ml` (образ, healthcheck, лимиты, `ML_TAG`
+> в deploy workflow), backend стенда с `ML_MODE=http` по умолчанию, GigaChat (раздел ниже). Не внесено: каталог
+> демо-данных `DEMO_IMPORT_DIR` (импорт пока через загрузку ZIP с UI). Ниже — исходные заметки.
+
 В репозиторий деплоя изменения не вносились: в нём нет ветки `feature/SMF-33`, а у `smart-factoring-ml` ещё нет CI,
 который публикует образ в ghcr. Ниже — готовый фрагмент.
 
