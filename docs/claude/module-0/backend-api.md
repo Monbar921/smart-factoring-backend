@@ -214,10 +214,10 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
 
 ## LLM для сервиса моделей (Р-48)
 
-Не через gateway: `http://backend:8080/internal/llm/v1`, только из сети стенда. smart-factoring-ml к GigaChat
-напрямую не ходит.
+Сервис моделей вызывает backend напрямую по сети стенда: `http://backend:8080/internal/rest/llm`; через gateway —
+`/api/backend/llm/**` с токеном Keycloak. smart-factoring-ml к GigaChat напрямую не ходит.
 
-### `POST /internal/llm/v1/chat/completions`
+### `POST /internal/rest/llm/chat/completions`
 
 ```json
 {

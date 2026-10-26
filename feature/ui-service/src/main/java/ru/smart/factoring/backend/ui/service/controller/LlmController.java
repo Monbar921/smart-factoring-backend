@@ -14,11 +14,11 @@ import ru.smart.factoring.backend.factoring.llm.LlmClient;
  * LLM для сервиса моделей (Р-48): smart-factoring-ml к GigaChat напрямую не ходит, только сюда.
  * Ключ, токен и предел одновременных запросов - общие с прогоном.
  * <p>
- * Путь вне /internal/rest: gateway его не проксирует, доступен только из сети стенда.
+ * Сервис моделей вызывает backend напрямую по сети стенда; через gateway - /api/backend/llm/** (с токеном Keycloak).
  * Ошибки: 400 VALIDATION_ERROR, 503 LLM_DISABLED (LLM_MODE не gigachat) / LLM_UNAVAILABLE, 502 LLM_ERROR.
  */
 @RestController
-@RequestMapping("/internal/llm/v1")
+@RequestMapping("/internal/rest/llm")
 @RequiredArgsConstructor
 public class LlmController {
     private final LlmClient llm;
