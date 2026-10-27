@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import ru.smart.factoring.backend.factoring.decision.DecisionEngine;
 import ru.smart.factoring.backend.factoring.decision.Explainer;
+import ru.smart.factoring.backend.factoring.decision.Explainer.Source;
 import ru.smart.factoring.backend.factoring.ml.ModelClient;
 
 import java.io.IOException;
@@ -76,16 +77,17 @@ public class ExplainerService implements Explainer {
                     yield cached;
                 }
                 try {
-                    final Texts texts = new Texts(complete(reasonsPrompt, facts.describe()), complete(draftPrompt, facts.describe()));
+                    final Texts texts = Texts.of(complete(reasonsPrompt, facts.describe()), complete(draftPrompt, facts.describe()),
+                            Source.LLM);
                     cache(hash, texts);
                     yield texts;
                 } catch (RuntimeException e) {
                     log.warn("GigaChat недоступен, карточка {} без черновика: {}", facts.updNumber(), e.getMessage());
-                    yield new Texts(templateReasons(facts), null);
+                    yield new Texts(templateReasons(facts), null, Source.FAILED, e.getMessage());
                 }
             }
-            case "off" -> new Texts(templateReasons(facts), null);
-            default -> new Texts(templateReasons(facts), templateDraft(facts));
+            case "off" -> Texts.of(templateReasons(facts), null, Source.TEMPLATE);
+            default -> Texts.of(templateReasons(facts), templateDraft(facts), Source.TEMPLATE);
         };
     }
 
@@ -147,7 +149,7 @@ public class ExplainerService implements Explainer {
     private Texts cached(final String hash) {
         return jdbc.query("select reasons_text, message_draft from llm_text_cache where input_hash = :hash",
                         new MapSqlParameterSource("hash", hash),
-                        (rs, rowNum) -> new Texts(rs.getString("reasons_text"), rs.getString("message_draft")))
+                        (rs, rowNum) -> Texts.of(rs.getString("reasons_text"), rs.getString("message_draft"), Source.CACHE))
                 .stream().findFirst().orElse(null);
     }
 

@@ -22,6 +22,8 @@ final class FakeGigaChat {
 
     private final HttpServer server;
     final List<String> chatRequests = new CopyOnWriteArrayList<>();
+    /** true - chat/completions отвечает 404 No such model, как GigaChat на неизвестную модель */
+    volatile boolean unknownModel;
 
     FakeGigaChat() {
         try {
@@ -29,11 +31,17 @@ final class FakeGigaChat {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        server.createContext("/api/v2/oauth", exchange -> send(exchange,
+        server.createContext("/api/v1/models", exchange -> send(exchange, 200,
+                "{\"object\":\"list\",\"data\":[{\"id\":\"GigaChat\"},{\"id\":\"GigaChat-2-Pro\"}]}"));
+        server.createContext("/api/v2/oauth", exchange -> send(exchange, 200,
                 "{\"access_token\":\"fake-token\",\"expires_at\":" + Instant.now().plus(Duration.ofMinutes(30)).toEpochMilli() + "}"));
         server.createContext("/api/v1/chat/completions", exchange -> {
             final String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             chatRequests.add(body);
+            if (unknownModel) {
+                send(exchange, 404, "{\"status\":404,\"message\":\"No such model\"}");
+                return;
+            }
             final String content;
             if (body.contains("Объясни менеджеру")) {
                 content = REASONS;
@@ -42,7 +50,7 @@ final class FakeGigaChat {
             } else {
                 content = "Ответ на: " + body.length();
             }
-            send(exchange, """
+            send(exchange, 200, """
                     {"choices":[{"message":{"role":"assistant","content":"%s"},"index":0,"finish_reason":"stop"}],
                      "model":"GigaChat:fake","usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13}}""".formatted(content));
         });
@@ -54,10 +62,10 @@ final class FakeGigaChat {
         return "http://127.0.0.1:" + server.getAddress().getPort();
     }
 
-    private static void send(final HttpExchange exchange, final String body) throws IOException {
+    private static void send(final HttpExchange exchange, final int status, final String body) throws IOException {
         final byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
-        exchange.sendResponseHeaders(200, bytes.length);
+        exchange.sendResponseHeaders(status, bytes.length);
         exchange.getResponseBody().write(bytes);
         exchange.close();
     }

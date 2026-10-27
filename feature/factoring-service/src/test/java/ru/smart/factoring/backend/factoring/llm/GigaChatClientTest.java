@@ -44,6 +44,7 @@ class GigaChatClientTest {
     private final AtomicInteger inFlight = new AtomicInteger();
     private final AtomicInteger maxInFlight = new AtomicInteger();
     private volatile long chatDelayMs;
+    private volatile String chatErrorBody;
 
     @BeforeEach
     void startServer() throws IOException {
@@ -67,12 +68,15 @@ class GigaChatClientTest {
                 if (status == null || status == 200) {
                     send(exchange, 200, COMPLETION);
                 } else {
-                    send(exchange, status, "{\"status\":" + status + ",\"message\":\"fake error\"}");
+                    send(exchange, status, chatErrorBody != null ? chatErrorBody : "{\"status\":" + status + ",\"message\":\"fake error\"}");
                 }
             } finally {
                 inFlight.decrementAndGet();
             }
         });
+        server.createContext("/api/v1/models", exchange -> send(exchange, 200, """
+                {"object":"list","data":[{"id":"GigaChat-2","object":"model","owned_by":"salutedevices"},
+                {"id":"GigaChat-2-Pro","object":"model","owned_by":"salutedevices"}]}"""));
         server.start();
     }
 
@@ -173,6 +177,25 @@ class GigaChatClientTest {
             }
         }
         assertThat(maxInFlight.get()).isEqualTo(2);
+    }
+
+    @Test
+    void listsModels() {
+        assertThat(client(4).models()).containsExactly("GigaChat-2", "GigaChat-2-Pro");
+        assertThat(tokenRequests).hasSize(1);
+    }
+
+    @Test
+    void unknownModelErrorListsAvailableModels() {
+        chatStatuses.add(404);
+        chatErrorBody = "{\"status\":404,\"message\":\"No such model\"}";
+
+        assertThatThrownBy(() -> client(4).complete(request()))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("LLM_ERROR"))
+                .hasMessageContaining("модель 'GigaChat' не найдена")
+                .hasMessageContaining("доступны: GigaChat-2, GigaChat-2-Pro")
+                .hasMessageContaining("GIGACHAT_MODEL");
+        assertThat(chatRequests).hasSize(1);
     }
 
     @Test
