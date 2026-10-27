@@ -25,7 +25,7 @@ import java.util.Set;
  * Партия данных ML-команды (контракт данных v1.0, smart-factoring-ml ml/delay/delivery/batch_NN, Р-54): CSV через запятую,
  * клиенты и договоры связаны по client_id и contract_id, статусы покупателей - в buyers_status.csv.
  * <p>
- * Партия переводится в таблицы формата генератора (demo-dataset-format.md) и дальше импортируется как выгрузка генератора:
+ * Партия переводится в таблицы формата генератора (manual-upload-format.md) и дальше импортируется как выгрузка генератора:
  * те же проверки ссылок и та же дельта (Р-52). Чего в партии нет, достраивается:
  * менеджеры - по manager_id клиентов, наименование покупателя - по ИНН, дата регистрации - по возрасту на дату снимка,
  * банкротство по ЕФРСБ - незакрытое дело без номера на стадии «Наблюдение» с даты события.
@@ -180,15 +180,15 @@ final class DeliveryBatch {
 
         final LocalDate snapshotDate = snapshot != null ? snapshot : end;
         final Map<String, Object> converted = new LinkedHashMap<>();
-        converted.put("format_version", DemoImportService.FORMAT_VERSION);
+        converted.put("format_version", ManualUploadService.FORMAT_VERSION);
         converted.put("data_date", end != null ? end.toString() : null);
         converted.put("snapshot_date", snapshotDate != null ? snapshotDate.toString() : null);
         converted.put("seed", manifest.get("seed"));
         converted.put("generator", string(manifest.get("batch_id")) + " " + string(manifest.get("generator_version")));
         return new Converted(converted,
-                new DemoImportService.Tables(tableOf(managerRows), tableOf(clientRows), tableOf(buyerRows), tableOf(List.of()),
+                new ManualUploadService.Tables(tableOf(managerRows), tableOf(clientRows), tableOf(buyerRows), tableOf(List.of()),
                         tableOf(contractRows), tableOf(updRows), tableOf(paymentRows)),
-                new DemoImportService.EfrsbTables(egrul, cases, List.of(), snapshotDate));
+                new ManualUploadService.EfrsbTables(egrul, cases, List.of(), snapshotDate));
     }
 
     /**
@@ -285,6 +285,6 @@ final class DeliveryBatch {
     /**
      * Партия в формате генератора: manifest (format_version, data_date, snapshot_date, seed, generator), таблицы, статусы.
      */
-    record Converted(Map<String, Object> manifest, DemoImportService.Tables tables, DemoImportService.EfrsbTables efrsb) {
+    record Converted(Map<String, Object> manifest, ManualUploadService.Tables tables, ManualUploadService.EfrsbTables efrsb) {
     }
 }

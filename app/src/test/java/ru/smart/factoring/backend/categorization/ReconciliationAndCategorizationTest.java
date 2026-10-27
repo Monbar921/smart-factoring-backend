@@ -67,7 +67,7 @@ class ReconciliationAndCategorizationTest extends AbstractSmartFactoringBackendT
         assertThat(step3.get("openUpds").asInt()).isEqualTo(28);
         assertThat(step3.get("overdueNotifications").asInt()).isEqualTo(4);
         assertThat(step3.get("riskSignals").asInt()).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("select buyer_inn from demo_risk_signal", String.class)).isEqualTo("7720000006");
+        assertThat(jdbcTemplate.queryForObject("select buyer_inn from imitation_risk_signal", String.class)).isEqualTo("7720000006");
         assertThat(jdbcTemplate.queryForObject("select count(*) from notification where type = 'OVERDUE'", Integer.class)).isEqualTo(4);
     }
 

@@ -55,7 +55,7 @@ public class OfferDecisionService {
         pack.put("reasons", offer.reasons());
         pack.put("decidedBy", user);
         final Long packageId = jdbc.queryForObject("""
-                        insert into demo_factoring_package (offer_id, payload) values (:offerId, cast(:payload as jsonb)) returning id""",
+                        insert into imitation_factoring_package (offer_id, payload) values (:offerId, cast(:payload as jsonb)) returning id""",
                 new MapSqlParameterSource().addValue("offerId", offerId).addValue("payload", json.write(pack)), Long.class);
         log(offer, "OFFER_TRANSFERRED", "Передано в факторинг: УПД " + offer.updNumber() + ", " + offer.ead() + " руб., пакет "
                 + packageId + " в ВТБ Факторинг (имитация)", user, null);

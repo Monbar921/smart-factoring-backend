@@ -64,7 +64,7 @@ class CrmAndDetailsTest extends AbstractSmartFactoringBackendTest {
         assertThat(jdbcTemplate.queryForObject("""
                 select d.limit_available_before from upd_decision d join upd u on u.id = d.upd_id
                 where d.run_id = ? and u.number = 'U-1003'""", BigDecimal.class, runId)).isEqualByComparingTo("25500000");
-        assertThat(jdbcTemplate.queryForObject("select count(*) from demo_factoring_package", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from imitation_factoring_package", Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("select count(*) from run_log where event_code in ('OFFER_TRANSFERRED', 'OFFER_REJECTED')",
                 Integer.class)).isEqualTo(2);
     }

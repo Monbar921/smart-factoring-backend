@@ -1,4 +1,4 @@
-package ru.smart.factoring.backend.api.demo;
+package ru.smart.factoring.backend.api.manualupload;
 
 /**
  * Итог импорта по таблице.
@@ -9,5 +9,5 @@ package ru.smart.factoring.backend.api.demo;
  * @param unchanged совпали с уже загруженными
  * @param conflicts пропущено: тот же ключ, но изменилось неизменяемое поле
  */
-public record DemoTableStatsDto(int rows, int inserted, int updated, int unchanged, int conflicts) {
+public record ManualUploadTableStatsDto(int rows, int inserted, int updated, int unchanged, int conflicts) {
 }

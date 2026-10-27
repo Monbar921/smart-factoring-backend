@@ -1,7 +1,7 @@
-# Модуль 0.5. Формат демо-данных (версия 1)
+# Модуль 0.5. Формат данных ручной загрузки (версия 1)
 
 Документ для коллеги, который делает генератор, и для импорта в backend. Пример в этом формате — ручная фикстура
-`app/src/test/resources/demo/fixture-v1/` (контрольные случаи К-1…К-18 — в её `CASES.md`).
+`app/src/test/resources/manual-upload/fixture-v1/` (контрольные случаи К-1…К-18 — в её `CASES.md`).
 
 ## Общие правила
 
@@ -36,14 +36,14 @@
 
 ## Файлы и колонки
 
-### `managers.csv` → `demo_manager`, ключ `code`
+### `managers.csv` → `manual_upload_manager`, ключ `code`
 
 | Колонка | Обяз. | Пример |
 |---|---|---|
 | `code` | да | `M1` |
 | `full_name` | да | `Иванова Анна Сергеевна` |
 
-### `clients.csv` → `demo_client`, ключ `inn`
+### `clients.csv` → `manual_upload_client`, ключ `inn`
 
 | Колонка | Обяз. | Смысл |
 |---|---|---|
@@ -58,13 +58,13 @@
 | `factoring_client` | да | уже клиент факторинга; `true` — не загружается (сноска к п. 1.1) |
 | `control_case` | нет | `K-1` … `K-18`, несколько — через запятую |
 
-### `buyers.csv` → `demo_buyer`, ключ `inn` — реестр покупателей
+### `buyers.csv` → `manual_upload_buyer`, ключ `inn` — реестр покупателей
 
 `inn`, `name` — обязательны; `ogrn`, `okved`, `okved_section`, `region`, `registration_date`, `data_date` — нет.
 Покупатель из УПД, которого нет в реестре, получает «нет данных по покупателю» (п. 1.4, К-17) — такие ИНН
 в реестр **не** включать.
 
-### `buyer_financials.csv` → `demo_buyer_financials`, ключ `inn` + `year`
+### `buyer_financials.csv` → `manual_upload_buyer_financials`, ключ `inn` + `year`
 
 `inn`, `year`, `simplified` (упрощённая отчётность) и строки форм в рублях, любые могут быть пустыми:
 
@@ -81,11 +81,11 @@
 
 Если для модели PD нужны другие строки — добавим колонки, версия формата станет `2`.
 
-### `contracts.csv` → `demo_contract`, ключ `client_inn` + `number`
+### `contracts.csv` → `manual_upload_contract`, ключ `client_inn` + `number`
 
 `client_inn`, `buyer_inn`, `number`, `contract_date`, `deferral_days` (срок отсрочки, дней) — все обязательны.
 
-### `upds.csv` → `demo_upd`, ключ `number` + `upd_date` + `client_inn` (НФР-3)
+### `upds.csv` → `manual_upload_upd`, ключ `number` + `upd_date` + `client_inn` (НФР-3)
 
 | Колонка | Обяз. | Смысл |
 |---|---|---|
@@ -98,7 +98,7 @@
 
 Плановая дата оплаты = `upd_date` + `deferral_days` договора (блок 3).
 
-### `payments.csv` → `demo_payment`, ключ `source_id`
+### `payments.csv` → `manual_upload_payment`, ключ `source_id`
 
 | Колонка | Обяз. | Смысл |
 |---|---|---|
@@ -114,7 +114,7 @@
 Формат текста свободный, например: `Оплата по УПД № U-1001 от 01.06.2026`, `Оплата по договору № Д-101`,
 `оплата по договору`. Платежи распределяются в порядке `payment_date`, затем `source_id`.
 
-### `events.csv` → `demo_egrul_status`, `demo_bankruptcy_case`, `demo_efrsb_event`
+### `events.csv` → `manual_upload_egrul_status`, `manual_upload_bankruptcy_case`, `manual_upload_efrsb_event`
 
 Формат исходной выгрузки ЕФРСБ без изменений (`;`, UTF-8 с BOM, 29 колонок, начиная с
 `ИНН;ОГРН;Наименование;Регион;Категория должника;Статус в ЕГРЮЛ;…;Ссылка`). Одна строка — одно событие;
@@ -124,9 +124,9 @@
 
 | Колонка CSV | Куда |
 |---|---|
-| ИНН, ОГРН, Наименование, Регион, Категория должника, Статус в ЕГРЮЛ, Дата статуса ЕГРЮЛ | `demo_egrul_status` |
-| Номер дела, Суд, Заявитель, Статус дела, Дата начала дела, Источник даты начала, Наблюдение с, Финансовое оздоровление с, Внешнее управление с, Признан банкротом, Конкурсное производство с, Дата окончания дела, Итог дела, Первое намерение/заявление о банкротстве | `demo_bankruptcy_case` |
-| Тип события, Событие, Детали, Дата события, Дата публикации, Номер сообщения, Аннулировано (`да` → true), Ссылка | `demo_efrsb_event` |
+| ИНН, ОГРН, Наименование, Регион, Категория должника, Статус в ЕГРЮЛ, Дата статуса ЕГРЮЛ | `manual_upload_egrul_status` |
+| Номер дела, Суд, Заявитель, Статус дела, Дата начала дела, Источник даты начала, Наблюдение с, Финансовое оздоровление с, Внешнее управление с, Признан банкротом, Конкурсное производство с, Дата окончания дела, Итог дела, Первое намерение/заявление о банкротстве | `manual_upload_bankruptcy_case` |
+| Тип события, Событие, Детали, Дата события, Дата публикации, Номер сообщения, Аннулировано (`да` → true), Ссылка | `manual_upload_efrsb_event` |
 
 ## Повторы и изменения (Р-52)
 
@@ -162,25 +162,50 @@
 
 ## Партии ML-команды (контракт данных v1.0, Р-54)
 
-Тот же импорт (`POST /demo/import`, папка или ZIP) принимает партии ML-команды — `smart-factoring-ml`,
+Тот же импорт (`POST /manual-upload`, папка или ZIP) принимает партии ML-команды — `smart-factoring-ml`,
 `ml/delay/delivery/batch_01…05`. Формат определяется по `manifest.json`: есть `contract_version` — партия,
 есть `format_version` — выгрузка генератора. Партия переводится в таблицы формата генератора и дальше идёт
 обычным путём: те же проверки ссылок, та же дельта (повторная загрузка партии — всё «без изменений»).
 Партии независимы, грузятся по одной в любом порядке.
+
+**Набор партий одним архивом (Р-55).** Архив (или папка) с `index.json` — как `ml/delay/delivery` у ML-команды:
+
+```
+delivery/              ← папка в архиве необязательна
+  index.json           ← contract_version, D_end, batches: [{batch_id, path}, …]
+  batch_01/ … batch_05/
+```
+
+- Загружаются все партии из `batches`, по порядку, **одной транзакцией**: ошибка в любой партии отклоняет весь набор.
+- `index.json` должен описывать набор точно: каждая `path` — папка с `manifest.json`; `batch_id` и `D_end` в
+  `manifest.json` партии — как в `index.json`; повтор партии и папка с `manifest.json`, которой нет в списке, — ошибка.
+- Отчёт — общий: строки таблиц складываются по партиям, файлы в ошибках и замечаниях — с папкой партии
+  (`batch_02/upd.csv:15: …`). В `manual_upload_batch` — одна запись вида `DELIVERY`, `source_name`
+  `index.json: batch_01, …, batch_05`.
+- Архив без `index.json` — одна партия или выгрузка генератора, как раньше.
+- Все 5 партий (4,2 МБ, 111 561 УПД, 118 229 платежей) — 53 с локально, повторно — 46 с. Поэтому для
+  `/api/backend/manual-upload/**` таймаут ответа в gateway и nginx UI — 10 минут, размер тела запроса в nginx — до 200 МБ.
+
+**Расхождение с README партий** (`ml/delay/README.md`): там повторная загрузка партии с тем же `batch_id` «заменяет
+её целиком». У нас — дельта (решение пользователя 27.10.2026): новое добавляется, изменённое обновляется, записи,
+которых нет в новой версии партии, **не удаляются**; смена покупателя у договора или договора у УПД — конфликт,
+строка пропускается. Пока партии не пересобираются, разницы нет. Если ML-команда пересоберёт партии (например,
+уточнив `D_end`, которая в README названа предварительной), перед загрузкой новой версии нужна полная очистка
+данных ручной загрузки (`DELETE /manual-upload/data`, «Очистить все данные»), иначе старые УПД и платежи останутся вместе с новыми.
 
 Правила партии: CSV через **запятую**, UTF-8, даты `YYYY-MM-DD`, пустая ячейка — пусто. Нужны все шесть файлов;
 число строк и SHA-256 каждого сверяются с `manifest.json` (`files`), расхождение — отказ.
 
 | Партия | Куда | Как переводится |
 |---|---|---|
-| `manifest.json`: `D_end`, `batch_id`, `generator_version`, `seed`, `pd_model_version` | `demo_import_batch` (вид `DELIVERY`) | `D_end` — дата данных (= последней дате УПД и платежей); `source_name` — `batch_id generator_version` |
-| `clients.csv`: `client_id`, `client_inn`, `client_name`, `industry`, `region`, `abs_liquidity`, `receivable_days`, `core`, `manager_id`, `edo_consent` | `demo_client` | `client_id` — только для связей; отрасль `торговля / производство / профессиональные_услуги / строительство` → `TRADE / MANUFACTURING / PROFESSIONAL / CONSTRUCTION`; `1/0` → да/нет; `receivable_days` округляется до дней; `factoring_client` — нет |
-| `manager_id` клиентов | `demo_manager` | менеджеры достраиваются: код `MG-010`, имя «Менеджер MG-010» |
-| `buyers.csv`: `buyer_inn`, `snapshot_date`, `okved_section`, `region`, `age_years`, `pd` | `demo_buyer` | наименования нет — «ИНН …»; дата регистрации — `snapshot_date` минус `age_years`; `pd` — с версией `pd_model_version` (ниже) |
-| `buyers_status.csv`: `egrul_status`, `bankruptcy_efrsb`, `event_date` | `demo_egrul_status`, `demo_bankruptcy_case` | статус ЕГРЮЛ как есть (`ликвидация`, `исключение` — стоп-факторы), дата статуса — `event_date`; `bankruptcy_efrsb = 1` — незакрытое дело «б/н» на стадии «Наблюдение» с `event_date` (стоп-фактор «банкротство») |
-| `contracts.csv`: `contract_id`, `contract_number`, `client_id`, `buyer_inn`, `contract_date`, `deferral_days` | `demo_contract` | `client_id` → ИНН клиента |
-| `upd.csv`: `upd_number`, `upd_date`, `client_id`, `buyer_inn`, `contract_id`, `amount_rub` | `demo_upd` | `contract_id` → номер договора; `plan_pay_date` не нужен — срок оплаты считается по отсрочке договора (в партиях совпадает) |
-| `payments.csv`: `payment_id`, `pay_date`, `client_id`, `buyer_inn`, `amount_rub`, `purpose` | `demo_payment` | `payment_id` → `source_id`, `buyer_inn` → плательщик |
+| `manifest.json`: `D_end`, `batch_id`, `generator_version`, `seed`, `pd_model_version` | `manual_upload_batch` (вид `DELIVERY`) | `D_end` — дата данных (= последней дате УПД и платежей); `source_name` — `batch_id generator_version` |
+| `clients.csv`: `client_id`, `client_inn`, `client_name`, `industry`, `region`, `abs_liquidity`, `receivable_days`, `core`, `manager_id`, `edo_consent` | `manual_upload_client` | `client_id` — только для связей; отрасль `торговля / производство / профессиональные_услуги / строительство` → `TRADE / MANUFACTURING / PROFESSIONAL / CONSTRUCTION`; `1/0` → да/нет; `receivable_days` округляется до дней; `factoring_client` — нет |
+| `manager_id` клиентов | `manual_upload_manager` | менеджеры достраиваются: код `MG-010`, имя «Менеджер MG-010» |
+| `buyers.csv`: `buyer_inn`, `snapshot_date`, `okved_section`, `region`, `age_years`, `pd` | `manual_upload_buyer` | наименования нет — «ИНН …»; дата регистрации — `snapshot_date` минус `age_years`; `pd` — с версией `pd_model_version` (ниже) |
+| `buyers_status.csv`: `egrul_status`, `bankruptcy_efrsb`, `event_date` | `manual_upload_egrul_status`, `manual_upload_bankruptcy_case` | статус ЕГРЮЛ как есть (`ликвидация`, `исключение` — стоп-факторы), дата статуса — `event_date`; `bankruptcy_efrsb = 1` — незакрытое дело «б/н» на стадии «Наблюдение» с `event_date` (стоп-фактор «банкротство») |
+| `contracts.csv`: `contract_id`, `contract_number`, `client_id`, `buyer_inn`, `contract_date`, `deferral_days` | `manual_upload_contract` | `client_id` → ИНН клиента |
+| `upd.csv`: `upd_number`, `upd_date`, `client_id`, `buyer_inn`, `contract_id`, `amount_rub` | `manual_upload_upd` | `contract_id` → номер договора; `plan_pay_date` не нужен — срок оплаты считается по отсрочке договора (в партиях совпадает) |
+| `payments.csv`: `payment_id`, `pay_date`, `client_id`, `buyer_inn`, `amount_rub`, `purpose` | `manual_upload_payment` | `payment_id` → `source_id`, `buyer_inn` → плательщик |
 
 Не используются: `delay_scores.csv` (эталон модели задержки для сверки), `category`, `stop_type`, `low_data_reason`,
 `risk_level` и показатели покупателя из `buyers.csv` — категории, стоп-факторы и уровни продукт определяет сам.

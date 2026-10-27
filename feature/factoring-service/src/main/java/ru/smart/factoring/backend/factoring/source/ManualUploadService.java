@@ -8,8 +8,8 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
-import ru.smart.factoring.backend.api.demo.DemoImportResultDto;
-import ru.smart.factoring.backend.api.demo.DemoTableStatsDto;
+import ru.smart.factoring.backend.api.manualupload.ManualUploadResultDto;
+import ru.smart.factoring.backend.api.manualupload.ManualUploadTableStatsDto;
 import ru.smart.factoring.backend.factoring.error.ApiException;
 import ru.smart.factoring.backend.factoring.json.Json;
 
@@ -27,6 +27,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,21 +37,23 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * Импорт демо-данных в таблицы demo_* (ДД-1): выгрузка генератора и events.csv
- * (формат - docs/claude/module-0/demo-dataset-format.md), партия ML-команды - {@link DeliveryBatch}.
+ * Импорт данных ручной загрузки в таблицы manual_upload_* (ДД-1): выгрузка генератора и events.csv
+ * (формат - docs/claude/module-0/manual-upload-format.md), партия ML-команды - {@link DeliveryBatch}.
  * <p>
  * Импорт - дельта (Р-52): новые записи добавляются, существующие (по естественному ключу) обновляются, ничего
  * не удаляется; история прогонов и решения менеджеров сохраняются. Строка, у которой при том же ключе изменилось
  * неизменяемое поле, пропускается (конфликт), остальное загружается; возможные дубли загружаются с предупреждением.
  * Всё - в отчёте импорта. Ошибки формата и ссылок по-прежнему отклоняют выгрузку целиком.
- * Полная очистка демо-данных - отдельное действие {@link #reset()}.
+ * Полная очистка данных ручной загрузки - отдельное действие {@link #reset()}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DemoImportService {
+public class ManualUploadService {
     static final String FORMAT_VERSION = "1";
     private static final String MANIFEST = "manifest.json";
+    private static final String INDEX = "index.json";
+    private static final String DELIVERY = "DELIVERY";
     private static final String EVENTS = "events.csv";
     private static final String CONTROL_CASE = "control_case";
     private static final Set<String> INDUSTRIES = Set.of("CONSTRUCTION", "PROFESSIONAL", "MANUFACTURING", "TRADE");
@@ -63,46 +66,47 @@ public class DemoImportService {
     private static final List<String> LOADED_AND_RESULTS = List.of(
             "run_log", "notification", "offer", "upd_decision", "upd_score", "buyer_score", "buyer_pd_cache", "upd_state",
             "payment_allocation", "run_step", "payment", "upd", "contract", "buyer_financials", "buyer_external_data",
-            "client", "buyer", "manager", "run", "demo_factoring_package", "demo_risk_signal");
+            "client", "buyer", "manager", "run", "imitation_factoring_package", "imitation_risk_signal");
     private static final List<String> SOURCES = List.of(
-            "demo_manager", "demo_client", "demo_buyer", "demo_buyer_financials", "demo_contract", "demo_upd", "demo_payment",
-            "demo_egrul_status", "demo_bankruptcy_case", "demo_efrsb_event", "demo_import_batch");
+            "manual_upload_manager", "manual_upload_client", "manual_upload_buyer", "manual_upload_buyer_financials",
+            "manual_upload_contract", "manual_upload_upd", "manual_upload_payment", "manual_upload_egrul_status",
+            "manual_upload_bankruptcy_case", "manual_upload_efrsb_event", "manual_upload_batch");
 
-    private static final SourceUpsert MANAGERS = new SourceUpsert("managers", "demo_manager", "managers.csv", List.of("code"), Set.of(),
+    private static final SourceUpsert MANAGERS = new SourceUpsert("managers", "manual_upload_manager", "managers.csv", List.of("code"), Set.of(),
             List.of(), List.of("full_name"), false, List.of());
-    private static final SourceUpsert CLIENTS = new SourceUpsert("clients", "demo_client", "clients.csv", List.of("inn"), Set.of(),
+    private static final SourceUpsert CLIENTS = new SourceUpsert("clients", "manual_upload_client", "clients.csv", List.of("inn"), Set.of(),
             List.of(), List.of("name", "industry", "okved_section", "region", "abs_liquidity", "ar_turnover_days", "is_core",
             "manager_code", "edo_consent", "factoring_client", CONTROL_CASE), false, List.of());
-    private static final SourceUpsert BUYERS = new SourceUpsert("buyers", "demo_buyer", "buyers.csv", List.of("inn"), Set.of(),
+    private static final SourceUpsert BUYERS = new SourceUpsert("buyers", "manual_upload_buyer", "buyers.csv", List.of("inn"), Set.of(),
             List.of(), List.of("ogrn", "name", "okved", "okved_section", "region", "registration_date", "data_date", "pd",
             "pd_model_version"), false, List.of());
-    private static final SourceUpsert FINANCIALS = new SourceUpsert("buyerFinancials", "demo_buyer_financials", "buyer_financials.csv",
+    private static final SourceUpsert FINANCIALS = new SourceUpsert("buyerFinancials", "manual_upload_buyer_financials", "buyer_financials.csv",
             List.of("inn", "year"), Set.of(), List.of(),
             Stream.of(List.of("simplified"), FINANCIAL_COLUMNS, List.of("data_date")).flatMap(List::stream).toList(), false, List.of());
     /** у договора нельзя сменить покупателя; дата и отсрочка - можно (допсоглашение) */
-    private static final SourceUpsert CONTRACTS = new SourceUpsert("contracts", "demo_contract", "contracts.csv",
+    private static final SourceUpsert CONTRACTS = new SourceUpsert("contracts", "manual_upload_contract", "contracts.csv",
             List.of("client_inn", "number"), Set.of(), List.of("buyer_inn"), List.of("contract_date", "deferral_days"), true, List.of());
     /** у УПД нельзя сменить покупателя и договор; сумма может измениться (корректировочный документ) */
-    private static final SourceUpsert UPDS = new SourceUpsert("upds", "demo_upd", "upds.csv", List.of("number", "upd_date", "client_inn"),
+    private static final SourceUpsert UPDS = new SourceUpsert("upds", "manual_upload_upd", "upds.csv", List.of("number", "upd_date", "client_inn"),
             Set.of(), List.of("buyer_inn", "contract_number"), List.of("amount", CONTROL_CASE), true,
             List.of("client_inn", "buyer_inn", "upd_date", "amount"));
     /** строка выписки неизменна: сумма, дата, получатель и плательщик; назначение - уточняется */
-    private static final SourceUpsert PAYMENTS = new SourceUpsert("payments", "demo_payment", "payments.csv", List.of("source_id"),
+    private static final SourceUpsert PAYMENTS = new SourceUpsert("payments", "manual_upload_payment", "payments.csv", List.of("source_id"),
             Set.of(), List.of("client_inn", "payer_inn", "amount", "payment_date"), List.of("purpose", CONTROL_CASE), true,
             List.of("client_inn", "payer_inn", "amount", "payment_date", "purpose"));
-    private static final SourceUpsert EGRUL = new SourceUpsert("egrulStatuses", "demo_egrul_status", EVENTS, List.of("inn"), Set.of(),
+    private static final SourceUpsert EGRUL = new SourceUpsert("egrulStatuses", "manual_upload_egrul_status", EVENTS, List.of("inn"), Set.of(),
             List.of(), List.of("ogrn", "name", "region", "debtor_category", "status", "status_date"), false, List.of());
-    private static final SourceUpsert CASES = new SourceUpsert("bankruptcyCases", "demo_bankruptcy_case", EVENTS,
+    private static final SourceUpsert CASES = new SourceUpsert("bankruptcyCases", "manual_upload_bankruptcy_case", EVENTS,
             List.of("inn", "case_number"), Set.of(), List.of(), List.of("court", "applicant", "stage", "start_date", "start_date_source",
             "observation_from", "rehabilitation_from", "external_management_from", "declared_bankrupt_on", "receivership_from",
             "end_date", "outcome", "first_intent_date"), false, List.of());
-    private static final SourceUpsert EFRSB_EVENTS = new SourceUpsert("efrsbEvents", "demo_efrsb_event", EVENTS,
+    private static final SourceUpsert EFRSB_EVENTS = new SourceUpsert("efrsbEvents", "manual_upload_efrsb_event", EVENTS,
             List.of("inn", "case_number", "message_number", "event_type", "event"), Set.of("case_number", "event_type", "event"),
             List.of(), List.of("details", "event_date", "published_on", "annulled", "url"), false, List.of());
 
     private final NamedParameterJdbcTemplate jdbc;
     private final TransactionTemplate transactionTemplate;
-    private final DemoProperties properties;
+    private final ManualUploadProperties properties;
     private final Json json;
 
     /**
@@ -121,12 +125,117 @@ public class DemoImportService {
     }
 
     /**
-     * Выгрузка генератора или партия ML-команды (Р-54) - формат определяется по manifest.json.
+     * Выгрузка генератора или партия ML-команды (Р-54) - формат определяется по manifest.json;
+     * набор партий с index.json - {@link #importIndex(Path)}.
      */
-    public DemoImportResultDto importGenerator(final Path dir) {
-        final Path root = findRoot(dir);
+    public ManualUploadResultDto importGenerator(final Path dir) {
+        final Path index = findIndex(dir);
+        if (index != null) {
+            return importIndex(index);
+        }
         final ImportValidator v = new ImportValidator();
         final ImportReport report = new ImportReport();
+        final Prepared prepared = prepare(findRoot(dir), v, report, existing());
+        if (v.hasErrors()) {
+            throw invalid(v);
+        }
+        return transactionTemplate.execute(status -> {
+            ensureNoRunningRun();
+            return finish(prepared.kind(), prepared.formatVersion(), prepared.seed(), prepared.snapshotDate(), prepared.sourceName(),
+                    writeAll(prepared, report), report);
+        });
+    }
+
+    /**
+     * Набор партий ML-команды (Р-55): index.json со списком партий (batch_id, path) и папки партий рядом с ним.
+     * Загружаются все партии из списка и только они, одной транзакцией: ошибка в любой партии отклоняет весь набор.
+     * Отчёт - общий, файлы в замечаниях - с папкой партии (batch_01/upd.csv).
+     */
+    private ManualUploadResultDto importIndex(final Path indexFile) {
+        final Path base = indexFile.getParent();
+        final ImportValidator v = new ImportValidator();
+        final Map<String, Object> index = readJson(indexFile, INDEX, v);
+        if (!index.isEmpty() && !DeliveryBatch.CONTRACT_VERSION.equals(stringValue(index.get("contract_version")))) {
+            v.error(INDEX, null, "contract_version должен быть " + DeliveryBatch.CONTRACT_VERSION);
+        }
+        final List<?> entries = index.get("batches") instanceof List<?> list ? list : List.of();
+        if (!index.isEmpty() && entries.isEmpty()) {
+            v.error(INDEX, null, "нет списка партий batches");
+        }
+        final Existing existing = existing();
+        final List<Part> parts = new ArrayList<>();
+        final Set<String> ids = new LinkedHashSet<>();
+        final Set<Path> listed = new HashSet<>();
+        for (final Object entry : entries) {
+            final Map<?, ?> batch = entry instanceof Map<?, ?> map ? map : Map.of();
+            final String id = stringValue(batch.get("batch_id"));
+            final String path = stringValue(batch.get("path"));
+            if (id == null || path == null) {
+                v.error(INDEX, null, "у партии нет batch_id или path: " + entry);
+                continue;
+            }
+            final Path root = base.resolve(path).normalize();
+            if (!root.startsWith(base) || !Files.isRegularFile(root.resolve(MANIFEST))) {
+                v.error(INDEX, null, "партия " + id + ": нет папки " + path + " с manifest.json");
+                continue;
+            }
+            if (!ids.add(id) || !listed.add(root)) {
+                v.error(INDEX, null, "партия " + id + " (" + path + ") указана дважды");
+                continue;
+            }
+            final String folder = base.relativize(root).toString().replace('\\', '/') + "/";
+            final ImportReport report = new ImportReport();
+            v.prefix(folder);
+            final Prepared prepared = prepare(root, v, report, existing);
+            if (!prepared.kind().equals(DELIVERY)) {
+                v.error(MANIFEST, null, "не партия ML-команды: нет contract_version");
+            } else {
+                if (!id.equals(stringValue(prepared.source().get("batch_id")))) {
+                    v.error(MANIFEST, null, "batch_id " + prepared.source().get("batch_id") + ", в index.json - " + id);
+                }
+                if (index.get("D_end") != null && !Objects.equals(stringValue(index.get("D_end")), stringValue(prepared.source().get("D_end")))) {
+                    v.error(MANIFEST, null, "D_end " + prepared.source().get("D_end") + ", в index.json - " + index.get("D_end"));
+                }
+            }
+            v.prefix("");
+            parts.add(new Part(folder, prepared, report));
+        }
+        unlistedBatches(base, listed, v);
+        if (v.hasErrors()) {
+            throw invalid(v);
+        }
+        return transactionTemplate.execute(status -> {
+            ensureNoRunningRun();
+            final Map<String, Integer> counts = new LinkedHashMap<>();
+            final ImportReport total = new ImportReport();
+            LocalDate snapshotDate = null;
+            for (final Part part : parts) {
+                writeAll(part.prepared(), part.report()).forEach((table, rows) -> counts.merge(table, rows, Integer::sum));
+                total.add(part.report(), part.folder());
+                snapshotDate = max(snapshotDate, part.prepared().snapshotDate());
+            }
+            return finish(DELIVERY, stringValue(index.get("contract_version")), null, snapshotDate,
+                    "index.json: " + String.join(", ", ids), counts, total);
+        });
+    }
+
+    /**
+     * Папка с manifest.json рядом с index.json, но не из его списка - набор не совпадает с описанием.
+     */
+    private static void unlistedBatches(final Path base, final Set<Path> listed, final ImportValidator v) {
+        try (Stream<Path> dirs = Files.list(base)) {
+            dirs.filter(path -> Files.isRegularFile(path.resolve(MANIFEST)) && !listed.contains(path.normalize()))
+                    .sorted()
+                    .forEach(path -> v.error(INDEX, null, "папки " + path.getFileName() + " нет в списке партий"));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Чтение и проверка одной выгрузки или партии - до записи, без транзакции.
+     */
+    private Prepared prepare(final Path root, final ImportValidator v, final ImportReport report, final Existing existing) {
         final Map<String, Object> source = readManifest(root, v);
         final boolean delivery = DeliveryBatch.matches(source);
         final Map<String, Object> manifest;
@@ -150,25 +259,22 @@ public class DemoImportService {
             v.error(MANIFEST, null, "в выгрузке нет ни одного файла с данными");
         }
         final Set<Integer> skippedUpds = new HashSet<>();
-        validateGenerator(tables, manifest, existing(), v, report, skippedUpds);
-        if (v.hasErrors()) {
-            throw invalid(v);
-        }
-        final LocalDate snapshotDate = date(manifest.get("snapshot_date"));
-        return transactionTemplate.execute(status -> {
-            ensureNoRunningRun();
-            final Map<String, Integer> counts = writeGenerator(tables, report, skippedUpds);
-            if (efrsb != null) {
-                counts.putAll(writeEfrsb(efrsb, report));
-            }
-            return finish(delivery ? "DELIVERY" : "GENERATOR",
-                    stringValue(delivery ? source.get("contract_version") : manifest.get("format_version")),
-                    manifest.get("seed") instanceof Number seed ? seed.longValue() : null, snapshotDate,
-                    stringValue(manifest.get("generator")), counts, report);
-        });
+        validateGenerator(tables, manifest, existing, v, report, skippedUpds);
+        return new Prepared(delivery ? DELIVERY : "GENERATOR", source,
+                stringValue(delivery ? source.get("contract_version") : manifest.get("format_version")),
+                manifest.get("seed") instanceof Number seed ? seed.longValue() : null, date(manifest.get("snapshot_date")),
+                stringValue(manifest.get("generator")), tables, efrsb, skippedUpds);
     }
 
-    public DemoImportResultDto importEfrsb(final Path file) {
+    private Map<String, Integer> writeAll(final Prepared prepared, final ImportReport report) {
+        final Map<String, Integer> counts = writeGenerator(prepared.tables(), report, prepared.skippedUpds());
+        if (prepared.efrsb() != null) {
+            counts.putAll(writeEfrsb(prepared.efrsb(), report));
+        }
+        return counts;
+    }
+
+    public ManualUploadResultDto importEfrsb(final Path file) {
         final ImportValidator v = new ImportValidator();
         final EfrsbTables efrsb = readEfrsb(file, v);
         if (v.hasErrors()) {
@@ -183,7 +289,7 @@ public class DemoImportService {
     }
 
     /**
-     * Полная очистка демо-данных: источники, загруженные данные, прогоны и решения менеджеров (параметры остаются).
+     * Полная очистка данных ручной загрузки: источники, загруженные данные, прогоны и решения менеджеров (параметры остаются).
      * Отдельное действие оператора с подтверждением - импорт сам ничего не стирает (Р-52).
      */
     public void reset() {
@@ -191,16 +297,16 @@ public class DemoImportService {
             ensureNoRunningRun();
             jdbc.getJdbcTemplate().execute("truncate table " + String.join(", ", Stream.concat(LOADED_AND_RESULTS.stream(),
                     SOURCES.stream()).toList()) + " restart identity cascade");
-            log.info("Демо-данные очищены");
+            log.info("Данные ручной загрузки очищены");
         });
     }
 
-    private DemoImportResultDto finish(final String kind, final String formatVersion, final Long seed, final LocalDate snapshotDate,
+    private ManualUploadResultDto finish(final String kind, final String formatVersion, final Long seed, final LocalDate snapshotDate,
                                        final String sourceName, final Map<String, Integer> counts, final ImportReport report) {
-        final LocalDate dataDate = jdbc.queryForObject("select greatest((select max(upd_date) from demo_upd), "
-                + "(select max(payment_date) from demo_payment))", Map.of(), LocalDate.class);
+        final LocalDate dataDate = jdbc.queryForObject("select greatest((select max(upd_date) from manual_upload_upd), "
+                + "(select max(payment_date) from manual_upload_payment))", Map.of(), LocalDate.class);
         final long batchId = Objects.requireNonNull(jdbc.queryForObject("""
-                        insert into demo_import_batch (kind, format_version, seed, data_date, snapshot_date, source_name, row_counts, report)
+                        insert into manual_upload_batch (kind, format_version, seed, data_date, snapshot_date, source_name, row_counts, report)
                         values (:kind, :formatVersion, :seed, :dataDate, :snapshotDate, :sourceName, cast(:rowCounts as jsonb),
                                 cast(:report as jsonb))
                         returning id""",
@@ -216,13 +322,13 @@ public class DemoImportService {
                                 "issues", report.issues()))),
                 Long.class));
         log.info("Импорт {} {}: {}, замечания {}", kind, batchId, report.tables(), report.issueCounts());
-        return new DemoImportResultDto(batchId, dataDate, snapshotDate, counts, report.tables(), report.issueCounts(), report.issues());
+        return new ManualUploadResultDto(batchId, dataDate, snapshotDate, counts, report.tables(), report.issueCounts(), report.issues());
     }
 
     /**
      * ZIP с выгрузкой генератора: распаковывается во временный каталог и импортируется как папка.
      */
-    public DemoImportResultDto importGeneratorZip(final InputStream zip) {
+    public ManualUploadResultDto importGeneratorZip(final InputStream zip) {
         final Path dir = unzip(zip);
         try {
             return importGenerator(dir);
@@ -231,7 +337,7 @@ public class DemoImportService {
         }
     }
 
-    public DemoImportResultDto importEfrsbFile(final InputStream content) {
+    public ManualUploadResultDto importEfrsbFile(final InputStream content) {
         try {
             final Path file = Files.createTempFile("efrsb", ".csv");
             try {
@@ -247,17 +353,20 @@ public class DemoImportService {
 
     // ------------------------------------------------------------------ чтение и проверка выгрузки генератора
 
-    @SuppressWarnings("checkstyle:IllegalCatch")
     private Map<String, Object> readManifest(final Path root, final ImportValidator v) {
-        final Path file = root.resolve(MANIFEST);
+        return readJson(root.resolve(MANIFEST), MANIFEST, v);
+    }
+
+    @SuppressWarnings("checkstyle:IllegalCatch")
+    private Map<String, Object> readJson(final Path file, final String name, final ImportValidator v) {
         if (!Files.exists(file)) {
-            v.error(MANIFEST, null, "нет файла");
+            v.error(name, null, "нет файла");
             return Map.of();
         }
         try {
             return json.readMap(Files.readString(file));
         } catch (IOException | RuntimeException e) {
-            v.error(MANIFEST, null, "не JSON: " + e.getMessage());
+            v.error(name, null, "не JSON: " + e.getMessage());
             return Map.of();
         }
     }
@@ -291,11 +400,11 @@ public class DemoImportService {
      */
     private Existing existing() {
         final Map<String, String> contracts = new HashMap<>();
-        jdbc.getJdbcTemplate().query("select client_inn, number, buyer_inn from demo_contract",
+        jdbc.getJdbcTemplate().query("select client_inn, number, buyer_inn from manual_upload_contract",
                 (RowCallbackHandler) rs -> contracts.put(rs.getString("client_inn") + "|" + rs.getString("number"), rs.getString("buyer_inn")));
         return new Existing(
-                new HashSet<>(jdbc.getJdbcTemplate().queryForList("select code from demo_manager", String.class)),
-                new HashSet<>(jdbc.getJdbcTemplate().queryForList("select inn from demo_client", String.class)),
+                new HashSet<>(jdbc.getJdbcTemplate().queryForList("select code from manual_upload_manager", String.class)),
+                new HashSet<>(jdbc.getJdbcTemplate().queryForList("select inn from manual_upload_client", String.class)),
                 contracts);
     }
 
@@ -523,8 +632,9 @@ public class DemoImportService {
         write(CONTRACTS, t.contracts(), Set.of(), counts, report, (row, p) -> p.addValue("client_inn", row.get("client_inn"))
                 .addValue("buyer_inn", row.get("buyer_inn")).addValue("number", row.get("number"))
                 .addValue("contract_date", date(row.get("contract_date"))).addValue("deferral_days", integer(row.get("deferral_days"))));
-        final DemoTableStatsDto upds = write(UPDS, t.upds(), skippedUpds, counts, report, (row, p) -> p.addValue("client_inn", row.get("client_inn"))
-                .addValue("buyer_inn", row.get("buyer_inn")).addValue("contract_number", row.get("contract_number"))
+        final ManualUploadTableStatsDto upds = write(UPDS, t.upds(), skippedUpds, counts, report, (row, p) -> p
+                .addValue("client_inn", row.get("client_inn")).addValue("buyer_inn", row.get("buyer_inn"))
+                .addValue("contract_number", row.get("contract_number"))
                 .addValue("number", row.get("number")).addValue("upd_date", date(row.get("upd_date")))
                 .addValue("amount", decimal(row.get("amount"))).addValue(CONTROL_CASE, row.get(CONTROL_CASE)));
         if (upds != null) {
@@ -540,7 +650,7 @@ public class DemoImportService {
     /**
      * @return итог по таблице; null - строк для записи не осталось (временной таблицы нет)
      */
-    private DemoTableStatsDto write(final SourceUpsert target, final Csv.Table table, final Set<Integer> skipped,
+    private ManualUploadTableStatsDto write(final SourceUpsert target, final Csv.Table table, final Set<Integer> skipped,
                                     final Map<String, Integer> counts, final ImportReport report, final RowBinder binder) {
         final List<SourceUpsert.Row> rows = table.rows().stream()
                 .filter(row -> !skipped.contains(row.line()))
@@ -551,13 +661,13 @@ public class DemoImportService {
                 })
                 .toList();
         counts.put(target.name(), table.rows().size());
-        final DemoTableStatsDto stats = target.write(jdbc, rows, report);
+        final ManualUploadTableStatsDto stats = target.write(jdbc, rows, report);
         final int skippedRows = table.rows().size() - rows.size();
         if (skippedRows > 0) {
             // строки, пропущенные до записи (УПД по договору в конфликте), - тоже конфликты таблицы
             report.table(target.name(), stats == null
-                    ? new DemoTableStatsDto(table.rows().size(), 0, 0, 0, skippedRows)
-                    : new DemoTableStatsDto(table.rows().size(), stats.inserted(), stats.updated(), stats.unchanged(),
+                    ? new ManualUploadTableStatsDto(table.rows().size(), 0, 0, 0, skippedRows)
+                    : new ManualUploadTableStatsDto(table.rows().size(), stats.inserted(), stats.updated(), stats.unchanged(),
                     stats.conflicts() + skippedRows));
         }
         return stats;
@@ -570,7 +680,7 @@ public class DemoImportService {
     private void warnTransferredChanged(final ImportReport report) {
         jdbc.getJdbcTemplate().query("""
                         select s.line, s.number, u.amount as before, s.amount as after
-                        from stg_demo_upd s
+                        from stg_manual_upload_upd s
                         join client c on c.inn = s.client_inn
                         join upd u on u.client_id = c.id and u.number = s.number and u.upd_date = s.upd_date
                         join offer o on o.upd_id = u.id and o.status = 'TRANSFERRED'
@@ -631,9 +741,28 @@ public class DemoImportService {
         }
     }
 
+    /**
+     * index.json набора партий: в самом каталоге или в единственной вложенной папке (ZIP с папкой delivery внутри);
+     * null - это одна выгрузка.
+     */
+    private static Path findIndex(final Path dir) {
+        if (Files.isRegularFile(dir.resolve(INDEX))) {
+            return dir.resolve(INDEX);
+        }
+        if (Files.exists(dir.resolve(MANIFEST))) {
+            return null;
+        }
+        try (Stream<Path> files = Files.list(dir)) {
+            final List<Path> nested = files.filter(Files::isDirectory).toList();
+            return nested.size() == 1 && Files.isRegularFile(nested.getFirst().resolve(INDEX)) ? nested.getFirst().resolve(INDEX) : null;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private static Path unzip(final InputStream zip) {
         try {
-            final Path dir = Files.createTempDirectory("demo-import");
+            final Path dir = Files.createTempDirectory("manual-upload");
             try (ZipInputStream in = new ZipInputStream(zip)) {
                 ZipEntry entry;
                 while ((entry = in.getNextEntry()) != null) {
@@ -713,6 +842,19 @@ public class DemoImportService {
      * Уже загруженные коды менеджеров, ИНН клиентов и договоры (клиент|номер → ИНН покупателя).
      */
     private record Existing(Set<String> managers, Set<String> clients, Map<String, String> contracts) {
+    }
+
+    /**
+     * Проверенная выгрузка, готовая к записи: вид и паспорт для manual_upload_batch, таблицы, пропускаемые УПД.
+     */
+    private record Prepared(String kind, Map<String, Object> source, String formatVersion, Long seed, LocalDate snapshotDate,
+                            String sourceName, Tables tables, EfrsbTables efrsb, Set<Integer> skippedUpds) {
+    }
+
+    /**
+     * Партия набора: папка (префикс файлов в отчёте), проверенные данные, её отчёт.
+     */
+    private record Part(String folder, Prepared prepared, ImportReport report) {
     }
 
     record EfrsbTables(List<MapSqlParameterSource> statuses, List<MapSqlParameterSource> cases,

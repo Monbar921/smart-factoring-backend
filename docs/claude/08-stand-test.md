@@ -1,9 +1,9 @@
 # SMF-33. Сквозная проверка стенда test
 
 Стенд: UI — http://188.127.254.192:8070, Swagger — http://188.127.254.192:8090/swagger-ui.html.
-Наборы для импорта — `demo-upload/fixture-v1.zip` (контрольные случаи К-1…К-18, 6 клиентов) и
-`demo-upload/demo-volume.zip` (объём демо: 100 клиентов, 300 покупателей, 1 500 открытых УПД) в корне репозитория,
-в git не входят. Собрать: `python -I docs/claude/tools/build_demo_zips.py`.
+Наборы для импорта — `manual-upload/fixture-v1.zip` (контрольные случаи К-1…К-18, 6 клиентов) и
+`manual-upload/perf-volume.zip` (объём демо: 100 клиентов, 300 покупателей, 1 500 открытых УПД) в корне репозитория,
+в git не входят. Собрать: `python -I docs/claude/tools/build_manual_upload_zips.py`.
 
 Что проверяется на стенде, а что — автотестами:
 
@@ -27,7 +27,7 @@
 
 1. UI → войти тестовым пользователем (после выдачи ролей — заново).
 2. **Ожидается**: в шапке оба раздела — «Экран процесса» и «Эмулятор CRM»; на экране процесса есть «Запуск прогона»
-   и «Импорт демо-данных». Если раздела нет — в токене нет роли: выйти и войти снова.
+   и «Импорт данных ручной загрузки». Если раздела нет — в токене нет роли: выйти и войти снова.
 
 ## 2. GigaChat через backend
 
@@ -95,7 +95,7 @@ Swagger → Authorize → `POST /api/backend/llm/chat/completions`:
 
 ## 8. Объём демо (НФР-1.1, ≤ 10 минут)
 
-«Очистка данных» (импорт — дельта и лёг бы поверх фикстуры), затем импорт `demo-volume.zip`, прогон. Предложений ~270 → ~540 запросов к GigaChat; при `LLM_PARALLELISM=1` это
+«Очистка данных» (импорт — дельта и лёг бы поверх фикстуры), затем импорт `perf-volume.zip`, прогон. Предложений ~270 → ~540 запросов к GigaChat; при `LLM_PARALLELISM=1` это
 **десятки минут** — НФР не выполнится на Freemium (Р-46). Чтобы проверить время самой системы — на время этого
 прогона `LLM_MODE=stub` (деплой), ожидается ~3–5 с; с GigaChat — замерить и записать, это вход для решения по тарифу.
 
@@ -107,8 +107,8 @@ Swagger → Authorize → `POST /api/backend/llm/chat/completions`:
 ## Наборы
 
 ```bash
-python -I docs/claude/tools/build_demo_zips.py
+python -I docs/claude/tools/build_manual_upload_zips.py
 ```
 
-Скрипт кладёт оба ZIP в `demo-upload/`. Внутри архива — папка выгрузки с `manifest.json`; фикстура —
-`app/src/test/resources/demo/fixture-v1` (CSV + `manifest.json` + `events.csv`), объём демо — `gen_perf_dataset.py`.
+Скрипт кладёт оба ZIP в `manual-upload/`. Внутри архива — папка выгрузки с `manifest.json`; фикстура —
+`app/src/test/resources/manual-upload/fixture-v1` (CSV + `manifest.json` + `events.csv`), объём демо — `gen_perf_dataset.py`.

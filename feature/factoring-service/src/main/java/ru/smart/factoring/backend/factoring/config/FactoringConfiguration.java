@@ -12,12 +12,12 @@ import ru.smart.factoring.backend.factoring.ml.HttpModelClient;
 import ru.smart.factoring.backend.factoring.ml.ModelClient;
 import ru.smart.factoring.backend.factoring.ml.ModelProperties;
 import ru.smart.factoring.backend.factoring.ml.StubModelClient;
-import ru.smart.factoring.backend.factoring.source.DemoProperties;
+import ru.smart.factoring.backend.factoring.source.ManualUploadProperties;
 
 import java.util.Locale;
 
 @Configuration
-@EnableConfigurationProperties({DemoProperties.class, ModelProperties.class, LlmProperties.class})
+@EnableConfigurationProperties({ManualUploadProperties.class, ModelProperties.class, LlmProperties.class})
 public class FactoringConfiguration {
     private static final int DEFAULT_LLM_THREADS = 8;
 

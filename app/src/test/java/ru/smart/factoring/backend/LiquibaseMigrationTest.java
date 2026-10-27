@@ -20,10 +20,11 @@ class LiquibaseMigrationTest extends AbstractSmartFactoringBackendTest {
 
     private static final String SCHEMA = "smart_factoring_test";
 
-    private static final List<String> DEMO_TABLES = List.of(
-            "demo_import_batch", "demo_manager", "demo_client", "demo_buyer", "demo_buyer_financials", "demo_contract",
-            "demo_upd", "demo_payment", "demo_egrul_status", "demo_bankruptcy_case", "demo_efrsb_event",
-            "demo_factoring_package", "demo_risk_signal");
+    private static final List<String> MANUAL_UPLOAD_TABLES = List.of(
+            "manual_upload_batch", "manual_upload_manager", "manual_upload_client", "manual_upload_buyer",
+            "manual_upload_buyer_financials", "manual_upload_contract", "manual_upload_upd", "manual_upload_payment",
+            "manual_upload_egrul_status", "manual_upload_bankruptcy_case", "manual_upload_efrsb_event",
+            "imitation_factoring_package", "imitation_risk_signal");
 
     private static final List<String> MAIN_TABLES = List.of(
             "manager", "client", "buyer", "buyer_external_data", "buyer_financials", "contract", "upd", "payment",
@@ -34,8 +35,21 @@ class LiquibaseMigrationTest extends AbstractSmartFactoringBackendTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void createsDemoAndMainTables() {
-        assertThat(tables()).containsAll(DEMO_TABLES).containsAll(MAIN_TABLES);
+    void createsManualUploadAndMainTables() {
+        assertThat(tables()).containsAll(MANUAL_UPLOAD_TABLES).containsAll(MAIN_TABLES);
+    }
+
+    @Test
+    void leavesNoDemoNames() {
+        // Р-56: таблицы, ограничения, индексы и последовательности demo_* переименованы
+        assertThat(jdbcTemplate.queryForList("""
+                select cl.relname from pg_class cl join pg_namespace n on n.oid = cl.relnamespace
+                where n.nspname = ? and cl.relname like 'demo\\_%'
+                union all
+                select c.conname from pg_constraint c join pg_namespace n on n.oid = c.connamespace
+                where n.nspname = ? and c.conname like 'demo\\_%'""", String.class, SCHEMA, SCHEMA)).isEmpty();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from pg_constraint where conname = 'manual_upload_batch_kind_check'",
+                Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -78,7 +92,7 @@ class LiquibaseMigrationTest extends AbstractSmartFactoringBackendTest {
     @Test
     void rejectsDuplicateUpdFromSource() {
         final String sql = """
-                insert into demo_upd (client_inn, buyer_inn, contract_number, number, upd_date, amount)
+                insert into manual_upload_upd (client_inn, buyer_inn, contract_number, number, upd_date, amount)
                 values ('7700000001', '7700000002', 'Д-1', 'УПД-1', date '2026-09-01', 1000000)""";
         jdbcTemplate.update(sql);
 

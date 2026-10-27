@@ -5,7 +5,7 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import ru.smart.factoring.backend.AbstractSmartFactoringBackendTest;
-import ru.smart.factoring.backend.factoring.source.DemoImportService;
+import ru.smart.factoring.backend.factoring.source.ManualUploadService;
 import ru.smart.factoring.backend.support.Fixture;
 import ru.smart.factoring.backend.support.TestDatabase;
 import tools.jackson.databind.JsonNode;
@@ -24,7 +24,7 @@ class RunPerformanceManualTest extends AbstractSmartFactoringBackendTest {
     private static final long TEN_MINUTES_MS = 600_000;
 
     @Autowired
-    private DemoImportService importService;
+    private ManualUploadService importService;
     @Autowired
     private JdbcTemplate jdbcTemplate;
 

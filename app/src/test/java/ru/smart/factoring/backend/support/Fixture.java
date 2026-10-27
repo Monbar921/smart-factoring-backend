@@ -6,7 +6,7 @@ import tools.jackson.databind.JsonNode;
 import java.util.Map;
 
 /**
- * Фикстура demo/fixture-v1 (CASES.md): импорт и запуск прогона через API.
+ * Фикстура manual-upload/fixture-v1 (CASES.md): импорт и запуск прогона через API.
  */
 public final class Fixture {
     public static final String PATH = "fixture-v1";
@@ -18,7 +18,7 @@ public final class Fixture {
 
     public static void importFixture(final JdbcTemplate jdbcTemplate) {
         TestDatabase.clean(jdbcTemplate);
-        final Api.Response response = Api.post("/demo/import", Map.of("path", PATH));
+        final Api.Response response = Api.post("/manual-upload", Map.of("path", PATH));
         if (response.status() != 200) {
             throw new AssertionError("Импорт фикстуры: " + response.status() + " " + response.body());
         }

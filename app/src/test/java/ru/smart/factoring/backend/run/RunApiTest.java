@@ -122,10 +122,10 @@ class RunApiTest extends AbstractSmartFactoringBackendTest {
 
     private void insertSourceUpd() {
         jdbcTemplate.update("""
-                insert into demo_client (inn, name, industry, abs_liquidity, manager_code)
+                insert into manual_upload_client (inn, name, industry, abs_liquidity, manager_code)
                 values ('7710000001', 'Клиент', 'TRADE', 0.3, 'M1')""");
         jdbcTemplate.update("""
-                insert into demo_upd (client_inn, buyer_inn, contract_number, number, upd_date, amount)
+                insert into manual_upload_upd (client_inn, buyer_inn, contract_number, number, upd_date, amount)
                 values ('7710000001', '7720000002', 'Д-1', 'U-1', date '2026-10-24', 1000000)""");
     }
 

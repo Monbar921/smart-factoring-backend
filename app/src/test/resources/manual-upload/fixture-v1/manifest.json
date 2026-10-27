@@ -1,6 +1,6 @@
 {
   "format_version": "1",
-  "generator": "hand-made fixture (SMF-33, docs/claude/module-0/demo-dataset-format.md)",
+  "generator": "hand-made fixture (SMF-33, docs/claude/module-0/manual-upload-format.md)",
   "seed": null,
   "data_date": "2026-10-24",
   "snapshot_date": "2026-10-20"

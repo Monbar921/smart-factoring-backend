@@ -1,4 +1,4 @@
-"""Синтетический набор объёма демо (ДД-4) для проверки НФР-1.1: формат docs/claude/module-0/demo-dataset-format.md.
+"""Синтетический набор объёма демо (ДД-4) для проверки НФР-1.1: формат docs/claude/module-0/manual-upload-format.md.
 
 python -I gen_perf_dataset.py <папка> [клиентов=100] [покупателей=300] [открытых УПД=1500]
 

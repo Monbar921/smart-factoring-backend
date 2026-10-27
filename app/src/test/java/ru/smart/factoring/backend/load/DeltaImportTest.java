@@ -7,10 +7,10 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import ru.smart.factoring.backend.AbstractSmartFactoringBackendTest;
-import ru.smart.factoring.backend.api.demo.DemoImportIssueDto;
-import ru.smart.factoring.backend.api.demo.DemoImportResultDto;
-import ru.smart.factoring.backend.api.demo.DemoTableStatsDto;
-import ru.smart.factoring.backend.factoring.source.DemoImportService;
+import ru.smart.factoring.backend.api.manualupload.ManualUploadIssueDto;
+import ru.smart.factoring.backend.api.manualupload.ManualUploadResultDto;
+import ru.smart.factoring.backend.api.manualupload.ManualUploadTableStatsDto;
+import ru.smart.factoring.backend.factoring.source.ManualUploadService;
 import ru.smart.factoring.backend.support.Api;
 import ru.smart.factoring.backend.support.Fixture;
 import ru.smart.factoring.backend.support.TestDatabase;
@@ -39,7 +39,7 @@ class DeltaImportTest extends AbstractSmartFactoringBackendTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
     @Autowired
-    private DemoImportService importService;
+    private ManualUploadService importService;
 
     @TempDir
     private Path dir;
@@ -60,7 +60,7 @@ class DeltaImportTest extends AbstractSmartFactoringBackendTest {
         final long offer = offerId("U-1004");
         assertThat(Api.post("/offers/" + offer + "/transfer", null).status()).isEqualTo(200);
 
-        final Api.Response again = Api.post("/demo/import", Map.of("path", Fixture.PATH));
+        final Api.Response again = Api.post("/manual-upload", Map.of("path", Fixture.PATH));
 
         assertThat(again.status()).isEqualTo(200);
         final JsonNode upds = again.body().get("tables").get("upds");
@@ -69,7 +69,7 @@ class DeltaImportTest extends AbstractSmartFactoringBackendTest {
         assertThat(upds.get("inserted").asInt() + upds.get("updated").asInt() + upds.get("conflicts").asInt()).isZero();
         assertThat(again.body().get("tables").get("efrsbEvents").get("unchanged").asInt()).isEqualTo(92);
         assertThat(again.body().get("issueCounts").isEmpty()).isTrue();
-        assertThat(count("demo_upd")).isEqualTo(39);
+        assertThat(count("manual_upload_upd")).isEqualTo(39);
         // ничего не сброшено: прогон и решение менеджера на месте
         assertThat(count("run")).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("select status from offer where id = ?", String.class, offer)).isEqualTo("TRANSFERRED");
@@ -83,9 +83,9 @@ class DeltaImportTest extends AbstractSmartFactoringBackendTest {
                 C1 + ";" + B1 + ";Д-101;U-1999;2026-10-30;1500000.00;",
                 C1 + ";" + B1 + ";Д-101;U-1003;2026-09-15;6500000.00;K-7");
 
-        final DemoImportResultDto result = importService.importGenerator(dir);
+        final ManualUploadResultDto result = importService.importGenerator(dir);
 
-        assertThat(result.tables().get("upds")).isEqualTo(new DemoTableStatsDto(2, 1, 1, 0, 0));
+        assertThat(result.tables().get("upds")).isEqualTo(new ManualUploadTableStatsDto(2, 1, 1, 0, 0));
         assertThat(result.dataDate()).hasToString("2026-10-30");
         assertThat(result.issues()).singleElement().satisfies(issue -> {
             assertThat(issue.level()).isEqualTo("CHANGED");
@@ -115,21 +115,21 @@ class DeltaImportTest extends AbstractSmartFactoringBackendTest {
         Files.writeString(dir.resolve("upds.csv"), String.join("\n", UPDS_HEADER,
                 C1 + ";7720000002;Д-101;U-1998;2026-10-24;900000.00;"), StandardCharsets.UTF_8);
 
-        final DemoImportResultDto result = importService.importGenerator(dir);
+        final ManualUploadResultDto result = importService.importGenerator(dir);
 
-        assertThat(result.tables().get("payments")).isEqualTo(new DemoTableStatsDto(2, 1, 0, 0, 1));
-        assertThat(result.tables().get("contracts")).isEqualTo(new DemoTableStatsDto(1, 0, 0, 0, 1));
-        assertThat(result.tables().get("upds")).isEqualTo(new DemoTableStatsDto(1, 0, 0, 0, 1));
+        assertThat(result.tables().get("payments")).isEqualTo(new ManualUploadTableStatsDto(2, 1, 0, 0, 1));
+        assertThat(result.tables().get("contracts")).isEqualTo(new ManualUploadTableStatsDto(1, 0, 0, 0, 1));
+        assertThat(result.tables().get("upds")).isEqualTo(new ManualUploadTableStatsDto(1, 0, 0, 0, 1));
         assertThat(result.issueCounts()).containsEntry("CONFLICT", 3);
         assertThat(messages(result, "CONFLICT")).anySatisfy(message -> assertThat(message).contains("amount 3000000.00 → 3100000.00"))
                 .anySatisfy(message -> assertThat(message).contains("buyer_inn " + B1 + " → 7720000002"))
                 .anySatisfy(message -> assertThat(message).contains("договор Д-101 уже загружен с другим покупателем"));
         // прежние данные не тронуты
-        assertThat(jdbcTemplate.queryForObject("select amount from demo_payment where source_id = 'P-0001'", BigDecimal.class))
+        assertThat(jdbcTemplate.queryForObject("select amount from manual_upload_payment where source_id = 'P-0001'", BigDecimal.class))
                 .isEqualByComparingTo("3000000");
-        assertThat(jdbcTemplate.queryForObject("select buyer_inn from demo_contract where number = 'Д-101'", String.class)).isEqualTo(B1);
-        assertThat(jdbcTemplate.queryForObject("select count(*) from demo_upd where number = 'U-1998'", Integer.class)).isZero();
-        assertThat(jdbcTemplate.queryForObject("select count(*) from demo_payment where source_id = 'P-0100'", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select buyer_inn from manual_upload_contract where number = 'Д-101'", String.class)).isEqualTo(B1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from manual_upload_upd where number = 'U-1998'", Integer.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from manual_upload_payment where source_id = 'P-0100'", Integer.class)).isEqualTo(1);
     }
 
     @Test
@@ -138,7 +138,7 @@ class DeltaImportTest extends AbstractSmartFactoringBackendTest {
                 PAYMENTS_HEADER,
                 "P-0001-COPY;" + C1 + ";" + B1 + ";3000000.00;2026-07-30;Оплата по УПД № U-1001 от 01.06.2026;");
 
-        final DemoImportResultDto result = importService.importGenerator(dir);
+        final ManualUploadResultDto result = importService.importGenerator(dir);
 
         assertThat(result.tables().get("payments").inserted()).isEqualTo(1);
         assertThat(result.issues()).singleElement().satisfies(issue -> {
@@ -154,7 +154,7 @@ class DeltaImportTest extends AbstractSmartFactoringBackendTest {
         assertThat(Api.post("/offers/" + offerId("U-1004") + "/transfer", null).status()).isEqualTo(200);
         export("2026-10-01", UPDS_HEADER, C1 + ";" + B1 + ";Д-101;U-1004;2026-10-01;4800000.00;K-1");
 
-        final DemoImportResultDto result = importService.importGenerator(dir);
+        final ManualUploadResultDto result = importService.importGenerator(dir);
 
         assertThat(messages(result, "WARNING")).singleElement().asString()
                 .contains("УПД уже передан в факторинг, сумма изменилась: 5000000.00 → 4800000.00");
@@ -165,9 +165,9 @@ class DeltaImportTest extends AbstractSmartFactoringBackendTest {
     void resetClearsDataRunsAndDecisions() throws InterruptedException {
         Fixture.run(Map.of());
 
-        assertThat(Api.delete("/demo/data").status()).isEqualTo(204);
+        assertThat(Api.delete("/manual-upload/data").status()).isEqualTo(204);
 
-        for (final String table : List.of("demo_upd", "demo_payment", "demo_efrsb_event", "demo_import_batch", "upd", "run", "offer")) {
+        for (final String table : List.of("manual_upload_upd", "manual_upload_payment", "manual_upload_efrsb_event", "manual_upload_batch", "upd", "run", "offer")) {
             assertThat(count(table)).as(table).isZero();
         }
         assertThat(count("parameter")).isPositive();
@@ -186,8 +186,8 @@ class DeltaImportTest extends AbstractSmartFactoringBackendTest {
                 select o.id from offer o join upd u on u.id = o.upd_id where u.number = ? and o.status = 'QUEUED'""", Long.class, number);
     }
 
-    private static List<String> messages(final DemoImportResultDto result, final String level) {
-        return result.issues().stream().filter(issue -> level.equals(issue.level())).map(DemoImportIssueDto::message).toList();
+    private static List<String> messages(final ManualUploadResultDto result, final String level) {
+        return result.issues().stream().filter(issue -> level.equals(issue.level())).map(ManualUploadIssueDto::message).toList();
     }
 
     private int count(final String table) {

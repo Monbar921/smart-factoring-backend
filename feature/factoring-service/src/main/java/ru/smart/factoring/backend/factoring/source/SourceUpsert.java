@@ -4,7 +4,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import ru.smart.factoring.backend.api.demo.DemoTableStatsDto;
+import ru.smart.factoring.backend.api.manualupload.ManualUploadTableStatsDto;
 import ru.smart.factoring.backend.factoring.error.ApiException;
 
 import java.math.BigDecimal;
@@ -46,12 +46,14 @@ record SourceUpsert(String name, String table, String file, List<String> keys, S
         return Stream.of(keys, immutable, mutable).flatMap(List::stream).toList();
     }
 
-    DemoTableStatsDto write(final NamedParameterJdbcTemplate jdbc, final List<Row> rows, final ImportReport report) {
+    ManualUploadTableStatsDto write(final NamedParameterJdbcTemplate jdbc, final List<Row> rows, final ImportReport report) {
         if (rows.isEmpty()) {
             return null;
         }
         final String stage = "stg_" + table;
         final String columns = String.join(", ", columns());
+        // в наборе партий таблица пишется несколько раз за транзакцию
+        jdbc.getJdbcTemplate().execute("drop table if exists " + stage);
         jdbc.getJdbcTemplate().execute("create temp table " + stage + " on commit drop as select " + columns + " from " + table
                 + " where false");
         jdbc.getJdbcTemplate().execute("alter table " + stage + " add column line integer");
@@ -74,8 +76,8 @@ record SourceUpsert(String name, String table, String file, List<String> keys, S
                 + " where " + distinct(table, "excluded", mutable) + " returning (xmax = 0)", Boolean.class));
         final int inserted = (int) written.stream().filter(Boolean.TRUE::equals).count();
         final int updated = written.size() - inserted;
-        final DemoTableStatsDto stats = new DemoTableStatsDto(rows.size(), inserted, updated, rows.size() - conflicts - written.size(),
-                conflicts);
+        final ManualUploadTableStatsDto stats = new ManualUploadTableStatsDto(rows.size(), inserted, updated,
+                rows.size() - conflicts - written.size(), conflicts);
         report.table(name, stats);
         return stats;
     }
