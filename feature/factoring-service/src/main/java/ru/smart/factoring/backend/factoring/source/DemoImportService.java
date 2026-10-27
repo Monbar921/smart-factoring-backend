@@ -2,13 +2,14 @@ package ru.smart.factoring.backend.factoring.source;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import ru.smart.factoring.backend.api.demo.DemoImportResultDto;
+import ru.smart.factoring.backend.api.demo.DemoTableStatsDto;
 import ru.smart.factoring.backend.factoring.error.ApiException;
 import ru.smart.factoring.backend.factoring.json.Json;
 
@@ -38,8 +39,11 @@ import java.util.zip.ZipInputStream;
  * Импорт демо-данных в таблицы demo_* (ДД-1): выгрузка генератора и events.csv
  * (формат - docs/claude/module-0/demo-dataset-format.md).
  * <p>
- * Выгрузка генератора - полный снимок демо-набора: импорт заменяет источник целиком и сбрасывает загруженные данные
- * и результаты прогонов (Р-30). Импорт events.csv заменяет только внешние данные ЕГРЮЛ/ЕФРСБ.
+ * Импорт - дельта (Р-52): новые записи добавляются, существующие (по естественному ключу) обновляются, ничего
+ * не удаляется; история прогонов и решения менеджеров сохраняются. Строка, у которой при том же ключе изменилось
+ * неизменяемое поле, пропускается (конфликт), остальное загружается; возможные дубли загружаются с предупреждением.
+ * Всё - в отчёте импорта. Ошибки формата и ссылок по-прежнему отклоняют выгрузку целиком.
+ * Полная очистка демо-данных - отдельное действие {@link #reset()}.
  */
 @Slf4j
 @Service
@@ -48,20 +52,52 @@ public class DemoImportService {
     static final String FORMAT_VERSION = "1";
     private static final String MANIFEST = "manifest.json";
     private static final String EVENTS = "events.csv";
+    private static final String CONTROL_CASE = "control_case";
     private static final Set<String> INDUSTRIES = Set.of("CONSTRUCTION", "PROFESSIONAL", "MANUFACTURING", "TRADE");
     private static final List<String> FINANCIAL_COLUMNS = List.of(
             "assets_total", "current_assets", "receivables", "cash", "equity", "long_term_borrowings", "short_term_liabilities",
             "short_term_borrowings", "payables", "revenue", "cost_of_sales", "sales_profit", "interest_payable", "net_profit");
     /**
-     * Загруженные данные и результаты прогонов: сбрасываются при импорте нового демо-набора (Р-30).
+     * Загруженные данные и результаты прогонов: удаляются только полной очисткой.
      */
     private static final List<String> LOADED_AND_RESULTS = List.of(
             "run_log", "notification", "offer", "upd_decision", "upd_score", "buyer_score", "buyer_pd_cache", "upd_state",
             "payment_allocation", "run_step", "payment", "upd", "contract", "buyer_financials", "buyer_external_data",
             "client", "buyer", "manager", "run", "demo_factoring_package", "demo_risk_signal");
-    private static final List<String> GENERATOR_SOURCE = List.of(
-            "demo_manager", "demo_client", "demo_buyer", "demo_buyer_financials", "demo_contract", "demo_upd", "demo_payment");
-    private static final List<String> EFRSB_SOURCE = List.of("demo_egrul_status", "demo_bankruptcy_case", "demo_efrsb_event");
+    private static final List<String> SOURCES = List.of(
+            "demo_manager", "demo_client", "demo_buyer", "demo_buyer_financials", "demo_contract", "demo_upd", "demo_payment",
+            "demo_egrul_status", "demo_bankruptcy_case", "demo_efrsb_event", "demo_import_batch");
+
+    private static final SourceUpsert MANAGERS = new SourceUpsert("managers", "demo_manager", "managers.csv", List.of("code"), Set.of(),
+            List.of(), List.of("full_name"), false, List.of());
+    private static final SourceUpsert CLIENTS = new SourceUpsert("clients", "demo_client", "clients.csv", List.of("inn"), Set.of(),
+            List.of(), List.of("name", "industry", "okved_section", "region", "abs_liquidity", "ar_turnover_days", "is_core",
+            "manager_code", "edo_consent", "factoring_client", CONTROL_CASE), false, List.of());
+    private static final SourceUpsert BUYERS = new SourceUpsert("buyers", "demo_buyer", "buyers.csv", List.of("inn"), Set.of(),
+            List.of(), List.of("ogrn", "name", "okved", "okved_section", "region", "registration_date", "data_date"), false, List.of());
+    private static final SourceUpsert FINANCIALS = new SourceUpsert("buyerFinancials", "demo_buyer_financials", "buyer_financials.csv",
+            List.of("inn", "year"), Set.of(), List.of(),
+            Stream.of(List.of("simplified"), FINANCIAL_COLUMNS, List.of("data_date")).flatMap(List::stream).toList(), false, List.of());
+    /** у договора нельзя сменить покупателя; дата и отсрочка - можно (допсоглашение) */
+    private static final SourceUpsert CONTRACTS = new SourceUpsert("contracts", "demo_contract", "contracts.csv",
+            List.of("client_inn", "number"), Set.of(), List.of("buyer_inn"), List.of("contract_date", "deferral_days"), true, List.of());
+    /** у УПД нельзя сменить покупателя и договор; сумма может измениться (корректировочный документ) */
+    private static final SourceUpsert UPDS = new SourceUpsert("upds", "demo_upd", "upds.csv", List.of("number", "upd_date", "client_inn"),
+            Set.of(), List.of("buyer_inn", "contract_number"), List.of("amount", CONTROL_CASE), true,
+            List.of("client_inn", "buyer_inn", "upd_date", "amount"));
+    /** строка выписки неизменна: сумма, дата, получатель и плательщик; назначение - уточняется */
+    private static final SourceUpsert PAYMENTS = new SourceUpsert("payments", "demo_payment", "payments.csv", List.of("source_id"),
+            Set.of(), List.of("client_inn", "payer_inn", "amount", "payment_date"), List.of("purpose", CONTROL_CASE), true,
+            List.of("client_inn", "payer_inn", "amount", "payment_date", "purpose"));
+    private static final SourceUpsert EGRUL = new SourceUpsert("egrulStatuses", "demo_egrul_status", EVENTS, List.of("inn"), Set.of(),
+            List.of(), List.of("ogrn", "name", "region", "debtor_category", "status", "status_date"), false, List.of());
+    private static final SourceUpsert CASES = new SourceUpsert("bankruptcyCases", "demo_bankruptcy_case", EVENTS,
+            List.of("inn", "case_number"), Set.of(), List.of(), List.of("court", "applicant", "stage", "start_date", "start_date_source",
+            "observation_from", "rehabilitation_from", "external_management_from", "declared_bankrupt_on", "receivership_from",
+            "end_date", "outcome", "first_intent_date"), false, List.of());
+    private static final SourceUpsert EFRSB_EVENTS = new SourceUpsert("efrsbEvents", "demo_efrsb_event", EVENTS,
+            List.of("inn", "case_number", "message_number", "event_type", "event"), Set.of("case_number", "event_type", "event"),
+            List.of(), List.of("details", "event_date", "published_on", "annulled", "url"), false, List.of());
 
     private final NamedParameterJdbcTemplate jdbc;
     private final TransactionTemplate transactionTemplate;
@@ -86,28 +122,28 @@ public class DemoImportService {
     public DemoImportResultDto importGenerator(final Path dir) {
         final Path root = findRoot(dir);
         final ImportValidator v = new ImportValidator();
+        final ImportReport report = new ImportReport();
         final Map<String, Object> manifest = readManifest(root, v);
         final Tables tables = readGeneratorTables(root, v);
         final EfrsbTables efrsb = Files.exists(root.resolve(EVENTS)) ? readEfrsb(root.resolve(EVENTS), v) : null;
-        final LocalDate dataDate = validateGenerator(tables, manifest, v);
+        if (tables.isEmpty() && efrsb == null) {
+            v.error(MANIFEST, null, "в выгрузке нет ни одного файла с данными");
+        }
+        final Set<Integer> skippedUpds = new HashSet<>();
+        validateGenerator(tables, manifest, existing(), v, report, skippedUpds);
         if (v.hasErrors()) {
             throw invalid(v);
         }
         final LocalDate snapshotDate = date(manifest.get("snapshot_date"));
         return transactionTemplate.execute(status -> {
             ensureNoRunningRun();
-            truncate(LOADED_AND_RESULTS);
-            truncate(GENERATOR_SOURCE);
-            final Map<String, Integer> counts = insertGenerator(tables);
+            final Map<String, Integer> counts = writeGenerator(tables, report, skippedUpds);
             if (efrsb != null) {
-                truncate(EFRSB_SOURCE);
-                counts.putAll(insertEfrsb(efrsb));
+                counts.putAll(writeEfrsb(efrsb, report));
             }
-            final long batchId = insertBatch("GENERATOR", stringValue(manifest.get("format_version")),
-                    manifest.get("seed") instanceof Number seed ? seed.longValue() : null, dataDate, snapshotDate,
-                    stringValue(manifest.get("generator")), counts);
-            log.info("Импорт демо-набора {}: {}", batchId, counts);
-            return new DemoImportResultDto(batchId, dataDate, snapshotDate, counts);
+            return finish("GENERATOR", stringValue(manifest.get("format_version")),
+                    manifest.get("seed") instanceof Number seed ? seed.longValue() : null, snapshotDate,
+                    stringValue(manifest.get("generator")), counts, report);
         });
     }
 
@@ -119,11 +155,47 @@ public class DemoImportService {
         }
         return transactionTemplate.execute(status -> {
             ensureNoRunningRun();
-            truncate(EFRSB_SOURCE);
-            final Map<String, Integer> counts = insertEfrsb(efrsb);
-            final long batchId = insertBatch("EFRSB", null, null, null, efrsb.snapshotDate(), file.getFileName().toString(), counts);
-            return new DemoImportResultDto(batchId, null, efrsb.snapshotDate(), counts);
+            final ImportReport report = new ImportReport();
+            final Map<String, Integer> counts = writeEfrsb(efrsb, report);
+            return finish("EFRSB", null, null, efrsb.snapshotDate(), file.getFileName().toString(), counts, report);
         });
+    }
+
+    /**
+     * Полная очистка демо-данных: источники, загруженные данные, прогоны и решения менеджеров (параметры остаются).
+     * Отдельное действие оператора с подтверждением - импорт сам ничего не стирает (Р-52).
+     */
+    public void reset() {
+        transactionTemplate.executeWithoutResult(status -> {
+            ensureNoRunningRun();
+            jdbc.getJdbcTemplate().execute("truncate table " + String.join(", ", Stream.concat(LOADED_AND_RESULTS.stream(),
+                    SOURCES.stream()).toList()) + " restart identity cascade");
+            log.info("Демо-данные очищены");
+        });
+    }
+
+    private DemoImportResultDto finish(final String kind, final String formatVersion, final Long seed, final LocalDate snapshotDate,
+                                       final String sourceName, final Map<String, Integer> counts, final ImportReport report) {
+        final LocalDate dataDate = jdbc.queryForObject("select greatest((select max(upd_date) from demo_upd), "
+                + "(select max(payment_date) from demo_payment))", Map.of(), LocalDate.class);
+        final long batchId = Objects.requireNonNull(jdbc.queryForObject("""
+                        insert into demo_import_batch (kind, format_version, seed, data_date, snapshot_date, source_name, row_counts, report)
+                        values (:kind, :formatVersion, :seed, :dataDate, :snapshotDate, :sourceName, cast(:rowCounts as jsonb),
+                                cast(:report as jsonb))
+                        returning id""",
+                new MapSqlParameterSource()
+                        .addValue("kind", kind)
+                        .addValue("formatVersion", formatVersion)
+                        .addValue("seed", seed)
+                        .addValue("dataDate", dataDate)
+                        .addValue("snapshotDate", snapshotDate)
+                        .addValue("sourceName", sourceName)
+                        .addValue("rowCounts", json.write(counts))
+                        .addValue("report", json.write(Map.of("tables", report.tables(), "issueCounts", report.issueCounts(),
+                                "issues", report.issues()))),
+                Long.class));
+        log.info("Импорт {} {}: {}, замечания {}", kind, batchId, report.tables(), report.issueCounts());
+        return new DemoImportResultDto(batchId, dataDate, snapshotDate, counts, report.tables(), report.issueCounts(), report.issues());
     }
 
     /**
@@ -173,32 +245,45 @@ public class DemoImportService {
         }
     }
 
+    /**
+     * Все файлы необязательны: дельта может содержать, например, только новые УПД и платежи.
+     */
     private Tables readGeneratorTables(final Path root, final ImportValidator v) {
         return new Tables(
-                table(root, "managers.csv", v, List.of("code", "full_name"), true),
+                table(root, "managers.csv", v, List.of("code", "full_name")),
                 table(root, "clients.csv", v, List.of("inn", "name", "industry", "abs_liquidity", "is_core", "manager_code",
-                        "edo_consent", "factoring_client"), true),
-                table(root, "buyers.csv", v, List.of("inn", "name"), true),
-                table(root, "buyer_financials.csv", v, List.of("inn", "year"), false),
-                table(root, "contracts.csv", v, List.of("client_inn", "buyer_inn", "number", "contract_date", "deferral_days"), true),
-                table(root, "upds.csv", v, List.of("client_inn", "buyer_inn", "contract_number", "number", "upd_date", "amount"), true),
-                table(root, "payments.csv", v, List.of("source_id", "client_inn", "payer_inn", "amount", "payment_date"), true));
+                        "edo_consent", "factoring_client")),
+                table(root, "buyers.csv", v, List.of("inn", "name")),
+                table(root, "buyer_financials.csv", v, List.of("inn", "year")),
+                table(root, "contracts.csv", v, List.of("client_inn", "buyer_inn", "number", "contract_date", "deferral_days")),
+                table(root, "upds.csv", v, List.of("client_inn", "buyer_inn", "contract_number", "number", "upd_date", "amount")),
+                table(root, "payments.csv", v, List.of("source_id", "client_inn", "payer_inn", "amount", "payment_date")));
     }
 
-    private static Csv.Table table(final Path root, final String name, final ImportValidator v, final List<String> required,
-                                   final boolean mandatory) {
+    private static Csv.Table table(final Path root, final String name, final ImportValidator v, final List<String> required) {
         final Path file = root.resolve(name);
         if (!Files.exists(file)) {
-            if (mandatory) {
-                v.error(name, null, "нет файла");
-            }
             return new Csv.Table(List.of(), List.of());
         }
         final Csv.Table table = Csv.read(file);
         return v.columns(name, table, required) ? table : new Csv.Table(List.of(), List.of());
     }
 
-    private LocalDate validateGenerator(final Tables t, final Map<String, Object> manifest, final ImportValidator v) {
+    /**
+     * Уже загруженное: ссылки выгрузки-дельты проверяются по файлу и по ним.
+     */
+    private Existing existing() {
+        final Map<String, String> contracts = new HashMap<>();
+        jdbc.getJdbcTemplate().query("select client_inn, number, buyer_inn from demo_contract",
+                (RowCallbackHandler) rs -> contracts.put(rs.getString("client_inn") + "|" + rs.getString("number"), rs.getString("buyer_inn")));
+        return new Existing(
+                new HashSet<>(jdbc.getJdbcTemplate().queryForList("select code from demo_manager", String.class)),
+                new HashSet<>(jdbc.getJdbcTemplate().queryForList("select inn from demo_client", String.class)),
+                contracts);
+    }
+
+    private void validateGenerator(final Tables t, final Map<String, Object> manifest, final Existing existing, final ImportValidator v,
+                                   final ImportReport report, final Set<Integer> skippedUpds) {
         final Set<String> managers = new HashSet<>();
         for (final Csv.Row row : t.managers().rows()) {
             v.required("managers.csv", row, "full_name");
@@ -219,8 +304,8 @@ public class DemoImportService {
             v.bool(file, row, "edo_consent", true);
             v.bool(file, row, "factoring_client", true);
             final String manager = v.required(file, row, "manager_code");
-            if (manager != null && !managers.contains(manager)) {
-                v.error(file, row.line(), "нет менеджера " + manager + " в managers.csv");
+            if (manager != null && !managers.contains(manager) && !existing.managers().contains(manager)) {
+                v.error(file, row.line(), "нет менеджера " + manager + " ни в managers.csv, ни в загруженных");
             }
         }
         final Set<String> buyers = new HashSet<>();
@@ -238,17 +323,28 @@ public class DemoImportService {
             FINANCIAL_COLUMNS.forEach(column -> v.decimal(file, row, column, false));
             v.date(file, row, "data_date", false);
         }
-        final Map<String, String> contractBuyer = new HashMap<>();
+        clients.addAll(existing.clients());
+        // договоры пары: загруженные, поверх - из файла; договор со сменой покупателя - конфликт (строка пропустится)
+        final Map<String, String> contractBuyer = new HashMap<>(existing.contracts());
+        final Map<String, String> conflictingContracts = new HashMap<>();
+        final Set<String> fileContracts = new HashSet<>();
         for (final Csv.Row row : t.contracts().rows()) {
             final String file = "contracts.csv";
             final String client = v.required(file, row, "client_inn");
             final String number = v.required(file, row, "number");
+            final String buyer = v.required(file, row, "buyer_inn");
             final String key = client + "|" + number;
-            if (contractBuyer.put(key, v.required(file, row, "buyer_inn")) != null) {
+            if (!fileContracts.add(key)) {
                 v.error(file, row.line(), "повтор ключа " + key);
             }
+            final String loaded = existing.contracts().get(key);
+            if (loaded != null && !loaded.equals(buyer)) {
+                conflictingContracts.put(key, buyer);
+            } else {
+                contractBuyer.put(key, buyer);
+            }
             if (client != null && !clients.contains(client)) {
-                v.error(file, row.line(), "нет клиента " + client + " в clients.csv");
+                v.error(file, row.line(), "нет клиента " + client + " ни в clients.csv, ни в загруженных");
             }
             v.date(file, row, "contract_date", true);
             final Integer deferral = v.integer(file, row, "deferral_days", true);
@@ -266,11 +362,16 @@ public class DemoImportService {
             final String buyer = v.required(file, row, "buyer_inn");
             final String contract = v.required(file, row, "contract_number");
             if (client != null && !clients.contains(client)) {
-                v.error(file, row.line(), "нет клиента " + client + " в clients.csv");
+                v.error(file, row.line(), "нет клиента " + client + " ни в clients.csv, ни в загруженных");
             }
-            final String contractOwner = contractBuyer.get(client + "|" + contract);
-            if (contractOwner == null || !contractOwner.equals(buyer)) {
-                v.error(file, row.line(), "нет договора " + contract + " пары " + client + " - " + buyer + " в contracts.csv");
+            final String contractKey = client + "|" + contract;
+            if (buyer != null && buyer.equals(conflictingContracts.get(contractKey))) {
+                // договор этой строки пропущен как конфликт - пропускается и УПД по нему
+                skippedUpds.add(row.line());
+                report.issue(ImportReport.Level.CONFLICT, file, row.line(), row.get("number"),
+                        "договор " + contract + " уже загружен с другим покупателем - УПД пропущен");
+            } else if (!buyer(contractBuyer, contractKey).equals(buyer)) {
+                v.error(file, row.line(), "нет договора " + contract + " пары " + client + " - " + buyer + " ни в contracts.csv, ни в загруженных");
             }
             positive(file, row, v.decimal(file, row, "amount", true), v);
             latest = max(latest, date);
@@ -281,7 +382,7 @@ public class DemoImportService {
             v.unique(file, row, payments, v.required(file, row, "source_id"));
             final String client = v.required(file, row, "client_inn");
             if (client != null && !clients.contains(client)) {
-                v.error(file, row.line(), "нет клиента " + client + " в clients.csv");
+                v.error(file, row.line(), "нет клиента " + client + " ни в clients.csv, ни в загруженных");
             }
             v.required(file, row, "payer_inn");
             positive(file, row, v.decimal(file, row, "amount", true), v);
@@ -296,7 +397,10 @@ public class DemoImportService {
         if (manifest.containsKey("snapshot_date") && date(manifest.get("snapshot_date")) == null) {
             v.error(MANIFEST, null, "snapshot_date не дата");
         }
-        return latest;
+    }
+
+    private static String buyer(final Map<String, String> contractBuyer, final String key) {
+        return Objects.toString(contractBuyer.get(key), "");
     }
 
     private static void positive(final String file, final Csv.Row row, final BigDecimal amount, final ImportValidator v) {
@@ -330,27 +434,27 @@ public class DemoImportService {
                     .addValue("ogrn", row.get("ОГРН"))
                     .addValue("name", row.get("Наименование"))
                     .addValue("region", row.get("Регион"))
-                    .addValue("debtorCategory", row.get("Категория должника"))
+                    .addValue("debtor_category", row.get("Категория должника"))
                     .addValue("status", row.get("Статус в ЕГРЮЛ"))
-                    .addValue("statusDate", statusDate));
+                    .addValue("status_date", statusDate));
             final String caseNumber = row.get("Номер дела");
             if (caseNumber != null) {
                 cases.computeIfAbsent(inn + "|" + caseNumber, key -> new MapSqlParameterSource()
                         .addValue("inn", inn)
-                        .addValue("caseNumber", caseNumber)
+                        .addValue("case_number", caseNumber)
                         .addValue("court", row.get("Суд"))
                         .addValue("applicant", row.get("Заявитель"))
                         .addValue("stage", row.get("Статус дела"))
-                        .addValue("startDate", v.date(name, row, "Дата начала дела", false))
-                        .addValue("startDateSource", row.get("Источник даты начала"))
-                        .addValue("observationFrom", v.date(name, row, "Наблюдение с", false))
-                        .addValue("rehabilitationFrom", v.date(name, row, "Финансовое оздоровление с", false))
-                        .addValue("externalManagementFrom", v.date(name, row, "Внешнее управление с", false))
-                        .addValue("declaredBankruptOn", v.date(name, row, "Признан банкротом", false))
-                        .addValue("receivershipFrom", v.date(name, row, "Конкурсное производство с", false))
-                        .addValue("endDate", v.date(name, row, "Дата окончания дела", false))
+                        .addValue("start_date", v.date(name, row, "Дата начала дела", false))
+                        .addValue("start_date_source", row.get("Источник даты начала"))
+                        .addValue("observation_from", v.date(name, row, "Наблюдение с", false))
+                        .addValue("rehabilitation_from", v.date(name, row, "Финансовое оздоровление с", false))
+                        .addValue("external_management_from", v.date(name, row, "Внешнее управление с", false))
+                        .addValue("declared_bankrupt_on", v.date(name, row, "Признан банкротом", false))
+                        .addValue("receivership_from", v.date(name, row, "Конкурсное производство с", false))
+                        .addValue("end_date", v.date(name, row, "Дата окончания дела", false))
                         .addValue("outcome", row.get("Итог дела"))
-                        .addValue("firstIntentDate", v.date(name, row, "Первое намерение/заявление о банкротстве", false)));
+                        .addValue("first_intent_date", v.date(name, row, "Первое намерение/заявление о банкротстве", false)));
             }
             final String message = v.required(name, row, "Номер сообщения");
             v.unique(name, row, eventKeys, String.join("|", inn, Objects.toString(caseNumber, ""), Objects.toString(message, ""),
@@ -359,13 +463,13 @@ public class DemoImportService {
             final LocalDate publishedOn = v.date(name, row, "Дата публикации", false);
             events.add(new MapSqlParameterSource()
                     .addValue("inn", inn)
-                    .addValue("caseNumber", caseNumber)
-                    .addValue("eventType", row.get("Тип события"))
+                    .addValue("case_number", caseNumber)
+                    .addValue("event_type", row.get("Тип события"))
                     .addValue("event", row.get("Событие"))
                     .addValue("details", row.get("Детали"))
-                    .addValue("eventDate", eventDate)
-                    .addValue("publishedOn", publishedOn)
-                    .addValue("messageNumber", message)
+                    .addValue("event_date", eventDate)
+                    .addValue("published_on", publishedOn)
+                    .addValue("message_number", message)
                     .addValue("annulled", "да".equalsIgnoreCase(Objects.toString(row.get("Аннулировано"), "").trim()))
                     .addValue("url", row.get("Ссылка")));
             snapshot = max(max(max(snapshot, statusDate), eventDate), publishedOn);
@@ -375,122 +479,107 @@ public class DemoImportService {
 
     // ------------------------------------------------------------------ запись
 
-    private Map<String, Integer> insertGenerator(final Tables t) {
+    private Map<String, Integer> writeGenerator(final Tables t, final ImportReport report, final Set<Integer> skippedUpds) {
         final Map<String, Integer> counts = new LinkedHashMap<>();
-        counts.put("managers", batch("insert into demo_manager (code, full_name) values (:code, :full_name)",
-                t.managers(), (row, p) -> p.addValue("code", row.get("code")).addValue("full_name", row.get("full_name"))));
-        counts.put("clients", batch("""
-                        insert into demo_client (inn, name, industry, okved_section, region, abs_liquidity, ar_turnover_days, is_core,
-                                                 manager_code, edo_consent, factoring_client, control_case)
-                        values (:inn, :name, :industry, :okved_section, :region, :abs_liquidity, :ar_turnover_days, :is_core,
-                                :manager_code, :edo_consent, :factoring_client, :control_case)""",
-                t.clients(), (row, p) -> p.addValue("inn", row.get("inn")).addValue("name", row.get("name"))
-                        .addValue("industry", row.get("industry")).addValue("okved_section", row.get("okved_section"))
-                        .addValue("region", row.get("region")).addValue("abs_liquidity", decimal(row.get("abs_liquidity")))
-                        .addValue("ar_turnover_days", integer(row.get("ar_turnover_days")))
-                        .addValue("is_core", bool(row.get("is_core"))).addValue("manager_code", row.get("manager_code"))
-                        .addValue("edo_consent", bool(row.get("edo_consent")))
-                        .addValue("factoring_client", bool(row.get("factoring_client")))
-                        .addValue("control_case", row.get("control_case"))));
-        counts.put("buyers", batch("""
-                        insert into demo_buyer (inn, ogrn, name, okved, okved_section, region, registration_date, data_date)
-                        values (:inn, :ogrn, :name, :okved, :okved_section, :region, :registration_date, :data_date)""",
-                t.buyers(), (row, p) -> p.addValue("inn", row.get("inn")).addValue("ogrn", row.get("ogrn"))
-                        .addValue("name", row.get("name")).addValue("okved", row.get("okved"))
-                        .addValue("okved_section", row.get("okved_section")).addValue("region", row.get("region"))
-                        .addValue("registration_date", date(row.get("registration_date")))
-                        .addValue("data_date", date(row.get("data_date")))));
-        counts.put("buyerFinancials", batch("""
-                        insert into demo_buyer_financials (inn, year, simplified, %s, data_date)
-                        values (:inn, :year, :simplified, %s, :data_date)""".formatted(String.join(", ", FINANCIAL_COLUMNS),
-                        String.join(", ", FINANCIAL_COLUMNS.stream().map(c -> ":" + c).toList())),
-                t.financials(), (row, p) -> {
-                    p.addValue("inn", row.get("inn")).addValue("year", integer(row.get("year")))
-                            .addValue("simplified", Boolean.TRUE.equals(bool(row.get("simplified"))))
-                            .addValue("data_date", date(row.get("data_date")));
-                    FINANCIAL_COLUMNS.forEach(column -> p.addValue(column, decimal(row.get(column))));
-                }));
-        counts.put("contracts", batch("""
-                        insert into demo_contract (client_inn, buyer_inn, number, contract_date, deferral_days)
-                        values (:client_inn, :buyer_inn, :number, :contract_date, :deferral_days)""",
-                t.contracts(), (row, p) -> p.addValue("client_inn", row.get("client_inn")).addValue("buyer_inn", row.get("buyer_inn"))
-                        .addValue("number", row.get("number")).addValue("contract_date", date(row.get("contract_date")))
-                        .addValue("deferral_days", integer(row.get("deferral_days")))));
-        counts.put("upds", batch("""
-                        insert into demo_upd (client_inn, buyer_inn, contract_number, number, upd_date, amount, control_case)
-                        values (:client_inn, :buyer_inn, :contract_number, :number, :upd_date, :amount, :control_case)""",
-                t.upds(), (row, p) -> p.addValue("client_inn", row.get("client_inn")).addValue("buyer_inn", row.get("buyer_inn"))
-                        .addValue("contract_number", row.get("contract_number")).addValue("number", row.get("number"))
-                        .addValue("upd_date", date(row.get("upd_date"))).addValue("amount", decimal(row.get("amount")))
-                        .addValue("control_case", row.get("control_case"))));
-        counts.put("payments", batch("""
-                        insert into demo_payment (source_id, client_inn, payer_inn, amount, payment_date, purpose, control_case)
-                        values (:source_id, :client_inn, :payer_inn, :amount, :payment_date, :purpose, :control_case)""",
-                t.payments(), (row, p) -> p.addValue("source_id", row.get("source_id")).addValue("client_inn", row.get("client_inn"))
-                        .addValue("payer_inn", row.get("payer_inn")).addValue("amount", decimal(row.get("amount")))
-                        .addValue("payment_date", date(row.get("payment_date"))).addValue("purpose", row.get("purpose"))
-                        .addValue("control_case", row.get("control_case"))));
+        write(MANAGERS, t.managers(), Set.of(), counts, report, (row, p) -> p.addValue("code", row.get("code"))
+                .addValue("full_name", row.get("full_name")));
+        write(CLIENTS, t.clients(), Set.of(), counts, report, (row, p) -> p.addValue("inn", row.get("inn")).addValue("name", row.get("name"))
+                .addValue("industry", row.get("industry")).addValue("okved_section", row.get("okved_section"))
+                .addValue("region", row.get("region")).addValue("abs_liquidity", decimal(row.get("abs_liquidity")))
+                .addValue("ar_turnover_days", integer(row.get("ar_turnover_days")))
+                .addValue("is_core", bool(row.get("is_core"))).addValue("manager_code", row.get("manager_code"))
+                .addValue("edo_consent", bool(row.get("edo_consent")))
+                .addValue("factoring_client", bool(row.get("factoring_client")))
+                .addValue(CONTROL_CASE, row.get(CONTROL_CASE)));
+        write(BUYERS, t.buyers(), Set.of(), counts, report, (row, p) -> p.addValue("inn", row.get("inn")).addValue("ogrn", row.get("ogrn"))
+                .addValue("name", row.get("name")).addValue("okved", row.get("okved"))
+                .addValue("okved_section", row.get("okved_section")).addValue("region", row.get("region"))
+                .addValue("registration_date", date(row.get("registration_date")))
+                .addValue("data_date", date(row.get("data_date"))));
+        write(FINANCIALS, t.financials(), Set.of(), counts, report, (row, p) -> {
+            p.addValue("inn", row.get("inn")).addValue("year", integer(row.get("year")))
+                    .addValue("simplified", Boolean.TRUE.equals(bool(row.get("simplified"))))
+                    .addValue("data_date", date(row.get("data_date")));
+            FINANCIAL_COLUMNS.forEach(column -> p.addValue(column, decimal(row.get(column))));
+        });
+        write(CONTRACTS, t.contracts(), Set.of(), counts, report, (row, p) -> p.addValue("client_inn", row.get("client_inn"))
+                .addValue("buyer_inn", row.get("buyer_inn")).addValue("number", row.get("number"))
+                .addValue("contract_date", date(row.get("contract_date"))).addValue("deferral_days", integer(row.get("deferral_days"))));
+        final DemoTableStatsDto upds = write(UPDS, t.upds(), skippedUpds, counts, report, (row, p) -> p.addValue("client_inn", row.get("client_inn"))
+                .addValue("buyer_inn", row.get("buyer_inn")).addValue("contract_number", row.get("contract_number"))
+                .addValue("number", row.get("number")).addValue("upd_date", date(row.get("upd_date")))
+                .addValue("amount", decimal(row.get("amount"))).addValue(CONTROL_CASE, row.get(CONTROL_CASE)));
+        if (upds != null) {
+            warnTransferredChanged(report);
+        }
+        write(PAYMENTS, t.payments(), Set.of(), counts, report, (row, p) -> p.addValue("source_id", row.get("source_id"))
+                .addValue("client_inn", row.get("client_inn")).addValue("payer_inn", row.get("payer_inn"))
+                .addValue("amount", decimal(row.get("amount"))).addValue("payment_date", date(row.get("payment_date")))
+                .addValue("purpose", row.get("purpose")).addValue(CONTROL_CASE, row.get(CONTROL_CASE)));
         return counts;
     }
 
-    private Map<String, Integer> insertEfrsb(final EfrsbTables efrsb) {
-        jdbc.batchUpdate("""
-                insert into demo_egrul_status (inn, ogrn, name, region, debtor_category, status, status_date)
-                values (:inn, :ogrn, :name, :region, :debtorCategory, :status, :statusDate)""",
-                efrsb.statuses().toArray(MapSqlParameterSource[]::new));
-        jdbc.batchUpdate("""
-                insert into demo_bankruptcy_case (inn, case_number, court, applicant, stage, start_date, start_date_source,
-                    observation_from, rehabilitation_from, external_management_from, declared_bankrupt_on, receivership_from,
-                    end_date, outcome, first_intent_date)
-                values (:inn, :caseNumber, :court, :applicant, :stage, :startDate, :startDateSource, :observationFrom,
-                    :rehabilitationFrom, :externalManagementFrom, :declaredBankruptOn, :receivershipFrom, :endDate, :outcome,
-                    :firstIntentDate)""",
-                efrsb.cases().toArray(MapSqlParameterSource[]::new));
-        jdbc.batchUpdate("""
-                insert into demo_efrsb_event (inn, case_number, event_type, event, details, event_date, published_on,
-                    message_number, annulled, url)
-                values (:inn, :caseNumber, :eventType, :event, :details, :eventDate, :publishedOn, :messageNumber, :annulled, :url)""",
-                efrsb.events().toArray(MapSqlParameterSource[]::new));
-        final Map<String, Integer> counts = new LinkedHashMap<>();
-        counts.put("egrulStatuses", efrsb.statuses().size());
-        counts.put("bankruptcyCases", efrsb.cases().size());
-        counts.put("efrsbEvents", efrsb.events().size());
-        return counts;
-    }
-
-    private int batch(final String sql, final Csv.Table table, final RowBinder binder) {
-        final MapSqlParameterSource[] batch = table.rows().stream()
+    /**
+     * @return итог по таблице; null - строк для записи не осталось (временной таблицы нет)
+     */
+    private DemoTableStatsDto write(final SourceUpsert target, final Csv.Table table, final Set<Integer> skipped,
+                                    final Map<String, Integer> counts, final ImportReport report, final RowBinder binder) {
+        final List<SourceUpsert.Row> rows = table.rows().stream()
+                .filter(row -> !skipped.contains(row.line()))
                 .map(row -> {
                     final MapSqlParameterSource params = new MapSqlParameterSource();
                     binder.bind(row, params);
-                    return params;
+                    return new SourceUpsert.Row(row.line(), params);
                 })
-                .toArray(MapSqlParameterSource[]::new);
-        try {
-            jdbc.batchUpdate(sql, batch);
-        } catch (DataAccessException e) {
-            // ограничения БД, которые не проверил валидатор (например, длина значения): отказ всей выгрузки
-            throw new ApiException("IMPORT_INVALID", HttpStatus.BAD_REQUEST, "Выгрузка не записалась в БД",
-                    Map.of("errors", List.of(String.valueOf(e.getMostSpecificCause().getMessage()))));
+                .toList();
+        counts.put(target.name(), table.rows().size());
+        final DemoTableStatsDto stats = target.write(jdbc, rows, report);
+        final int skippedRows = table.rows().size() - rows.size();
+        if (skippedRows > 0) {
+            // строки, пропущенные до записи (УПД по договору в конфликте), - тоже конфликты таблицы
+            report.table(target.name(), stats == null
+                    ? new DemoTableStatsDto(table.rows().size(), 0, 0, 0, skippedRows)
+                    : new DemoTableStatsDto(table.rows().size(), stats.inserted(), stats.updated(), stats.unchanged(),
+                    stats.conflicts() + skippedRows));
         }
-        return batch.length;
+        return stats;
     }
 
-    private long insertBatch(final String kind, final String formatVersion, final Long seed, final LocalDate dataDate,
-                             final LocalDate snapshotDate, final String sourceName, final Map<String, Integer> counts) {
-        return Objects.requireNonNull(jdbc.queryForObject("""
-                        insert into demo_import_batch (kind, format_version, seed, data_date, snapshot_date, source_name, row_counts)
-                        values (:kind, :formatVersion, :seed, :dataDate, :snapshotDate, :sourceName, cast(:rowCounts as jsonb))
-                        returning id""",
-                new MapSqlParameterSource()
-                        .addValue("kind", kind)
-                        .addValue("formatVersion", formatVersion)
-                        .addValue("seed", seed)
-                        .addValue("dataDate", dataDate)
-                        .addValue("snapshotDate", snapshotDate)
-                        .addValue("sourceName", sourceName)
-                        .addValue("rowCounts", json.write(counts)),
-                Long.class));
+    /**
+     * УПД, уже переданный в факторинг, пришёл с другой суммой: загружается, но менеджеру и оператору это нужно видеть.
+     * Основная таблица upd ещё со старой суммой - обновится шагом 1 следующего прогона.
+     */
+    private void warnTransferredChanged(final ImportReport report) {
+        jdbc.getJdbcTemplate().query("""
+                        select s.line, s.number, u.amount as before, s.amount as after
+                        from stg_demo_upd s
+                        join client c on c.inn = s.client_inn
+                        join upd u on u.client_id = c.id and u.number = s.number and u.upd_date = s.upd_date
+                        join offer o on o.upd_id = u.id and o.status = 'TRANSFERRED'
+                        where u.amount <> s.amount
+                        order by s.line""",
+                (RowCallbackHandler) rs -> report.issue(ImportReport.Level.WARNING, "upds.csv",
+                        rs.getInt("line"), rs.getString("number"), "УПД уже передан в факторинг, сумма изменилась: "
+                                + rs.getBigDecimal("before") + " → " + rs.getBigDecimal("after")));
+    }
+
+    private Map<String, Integer> writeEfrsb(final EfrsbTables efrsb, final ImportReport report) {
+        final Map<String, Integer> counts = new LinkedHashMap<>();
+        counts.put(EGRUL.name(), efrsb.statuses().size());
+        EGRUL.write(jdbc, rows(efrsb.statuses()), report);
+        counts.put(CASES.name(), efrsb.cases().size());
+        CASES.write(jdbc, rows(efrsb.cases()), report);
+        counts.put(EFRSB_EVENTS.name(), efrsb.events().size());
+        EFRSB_EVENTS.write(jdbc, rows(efrsb.events()), report);
+        return counts;
+    }
+
+    private static List<SourceUpsert.Row> rows(final List<MapSqlParameterSource> values) {
+        final List<SourceUpsert.Row> rows = new ArrayList<>();
+        for (int i = 0; i < values.size(); i++) {
+            rows.add(new SourceUpsert.Row(i + 2, values.get(i)));
+        }
+        return rows;
     }
 
     private void ensureNoRunningRun() {
@@ -498,10 +587,6 @@ public class DemoImportService {
         if (running != null && running > 0) {
             throw new ApiException("RUN_ALREADY_RUNNING", HttpStatus.CONFLICT, "Прогон уже выполняется: импорт невозможен", Map.of());
         }
-    }
-
-    private void truncate(final List<String> tables) {
-        jdbc.getJdbcTemplate().execute("truncate table " + String.join(", ", tables) + " restart identity cascade");
     }
 
     private static ApiException invalid(final ImportValidator v) {
@@ -600,6 +685,16 @@ public class DemoImportService {
 
     private record Tables(Csv.Table managers, Csv.Table clients, Csv.Table buyers, Csv.Table financials, Csv.Table contracts,
                           Csv.Table upds, Csv.Table payments) {
+
+        boolean isEmpty() {
+            return Stream.of(managers, clients, buyers, financials, contracts, upds, payments).allMatch(table -> table.rows().isEmpty());
+        }
+    }
+
+    /**
+     * Уже загруженные коды менеджеров, ИНН клиентов и договоры (клиент|номер → ИНН покупателя).
+     */
+    private record Existing(Set<String> managers, Set<String> clients, Map<String, String> contracts) {
     }
 
     private record EfrsbTables(List<MapSqlParameterSource> statuses, List<MapSqlParameterSource> cases,

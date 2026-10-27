@@ -674,4 +674,12 @@
         </sql>
     </changeSet>
 
+    <!-- Импорт - дельта (Р-52): отчёт импорта (по таблицам и замечания по строкам) хранится вместе с фактом импорта -->
+    <changeSet id="SMF-33-demo-import-report" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".demo_import_batch add column report jsonb;
+            comment on column "${schema}".demo_import_batch.report is 'Отчёт импорта: tables, issueCounts, issues';
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

@@ -48,6 +48,10 @@ public final class Api {
         return spec.exchange((request, response) -> read(response.getStatusCode(), response.getBody().readAllBytes()));
     }
 
+    public static Response delete(final String path) {
+        return client.delete().uri(path).exchange((request, response) -> read(response.getStatusCode(), response.getBody().readAllBytes()));
+    }
+
     private static Response read(final HttpStatusCode status, final byte[] body) {
         try {
             final String text = new String(body, StandardCharsets.UTF_8);
