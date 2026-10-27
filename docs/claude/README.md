@@ -8,6 +8,7 @@
 | [04-open-questions.md](04-open-questions.md) | Открытые вопросы к постановщику |
 | [06-progress.md](06-progress.md) | Ход работ по модулям |
 | [07-report.md](07-report.md) | **Итоговый отчёт: что сделано, что проверено, что нужно решить** |
+| [08-stand-test.md](08-stand-test.md) | Сквозная проверка стенда test: шаги и ожидаемые результаты |
 | [deploy-notes.md](deploy-notes.md) | Что добавить в smart-factoring-deploy: сервис ml, переменные |
 | [tools/gen_perf_dataset.py](tools/gen_perf_dataset.py) | Генератор набора объёма демо для проверки времени прогона |
 | [05-module-0-plan.md](05-module-0-plan.md) | Детальный план модуля 0: модель данных, Liquibase, контракты |
