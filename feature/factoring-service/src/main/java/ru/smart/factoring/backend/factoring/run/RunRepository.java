@@ -65,6 +65,17 @@ public class RunRepository {
                 .update();
     }
 
+    /**
+     * Прогресс долгой части шага - отдельным коротким запросом, вне транзакций шага: экран видит его сразу.
+     */
+    public void stepProgress(final long runId, final int stepNo, final String progressJson) {
+        jdbc.sql("update run_step set progress = cast(:progress as jsonb) where run_id = :runId and step_no = :stepNo")
+                .param("runId", runId)
+                .param("stepNo", stepNo)
+                .param("progress", progressJson)
+                .update();
+    }
+
     public void stepFinished(final long runId, final int stepNo, final StepStatus status, final String metricsJson) {
         jdbc.sql("""
                         update run_step set status = :status, finished_at = now(), metrics = cast(:metrics as jsonb)
@@ -144,6 +155,6 @@ public class RunRepository {
     }
 
     public record StepRow(long runId, int stepNo, String status, OffsetDateTime startedAt, OffsetDateTime finishedAt,
-                          String metrics) {
+                          String metrics, String progress) {
     }
 }

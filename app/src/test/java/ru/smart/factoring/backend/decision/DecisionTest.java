@@ -83,6 +83,17 @@ class DecisionTest extends AbstractSmartFactoringBackendTest {
         assertThat(jdbcTemplate.queryForObject("select count(*) from offer where status = 'QUEUED'", Integer.class)).isEqualTo(12);
         assertThat(jdbcTemplate.queryForObject("select count(*) from offer where message_draft is null", Integer.class)).isZero();
         assertThat(jdbcTemplate.queryForObject("select count(*) from notification where type = 'NEW_OFFER'", Integer.class)).isEqualTo(12);
+
+        // Р-57: прогресс долгих частей шагов - тексты карточек (шаг 5) и модели (шаг 4) досчитаны до конца
+        final JsonNode texts = run.get("steps").get(4).get("progress");
+        assertThat(texts.get("label").asString()).isEqualTo("Тексты карточек (stub)");
+        assertThat(texts.get("done").asInt()).isEqualTo(12);
+        assertThat(texts.get("total").asInt()).isEqualTo(12);
+        assertThat(texts.get("since").isNull()).isFalse();
+        final JsonNode delay = run.get("steps").get(3).get("progress");
+        assertThat(delay.get("label").asString()).isEqualTo("Модель задержки по УПД");
+        assertThat(delay.get("done").asInt()).isEqualTo(delay.get("total").asInt()).isPositive();
+        assertThat(run.get("steps").get(0).get("progress").isNull()).isTrue();
     }
 
     @Test

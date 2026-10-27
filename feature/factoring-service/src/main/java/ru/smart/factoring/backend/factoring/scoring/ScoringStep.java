@@ -14,6 +14,7 @@ import ru.smart.factoring.backend.factoring.model.UpdState;
 import ru.smart.factoring.backend.factoring.run.RunContext;
 import ru.smart.factoring.backend.factoring.run.RunLog;
 import ru.smart.factoring.backend.factoring.run.RunStep;
+import ru.smart.factoring.backend.factoring.run.StepProgress;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -152,6 +153,7 @@ public class ScoringStep implements RunStep {
                             cached.lowData(), cached.reasons(), modelVersion, true, null)),
                     () -> missing.add(buyer));
         }
+        final StepProgress progress = missing.isEmpty() ? null : context.progress(STEP_NO, "Оценка PD", missing.size());
         for (final List<ScoringRepository.BuyerData> batch : batches(missing)) {
             final Attempt<ModelClient.PdResponse> response = withRetries(context,
                     () -> modelClient.scorePd(new ModelClient.PdRequest(context.getCalcDate(),
@@ -174,6 +176,7 @@ public class ScoringStep implements RunStep {
                 scores.put(buyer.id(), buyerScore(context, buyer, buyersWithHistory, result.pd(), result.pdSource(),
                         Boolean.TRUE.equals(result.lowData()), result.reasons(), modelVersion, false, null));
             }
+            progress.advance(batch.size());
         }
         scores.values().stream()
                 .filter(score -> score.stopFactor() == null && score.error() == null)
@@ -219,6 +222,7 @@ public class ScoringStep implements RunStep {
                 })
                 .toList();
         final Map<Long, ScoringResult.UpdScore> scores = new LinkedHashMap<>();
+        final StepProgress progress = toScore.isEmpty() ? null : context.progress(STEP_NO, "Модель задержки по УПД", toScore.size());
         for (final List<UpdState> batch : batches(toScore)) {
             final Set<String> batchBuyers = batch.stream().map(state -> state.upd().buyerInn()).collect(Collectors.toSet());
             final ModelClient.DelayRequest request = new ModelClient.DelayRequest(context.getCalcDate(),
@@ -259,6 +263,7 @@ public class ScoringStep implements RunStep {
                             + ": нет истории пары, оценка по платёжной дисциплине покупателя (п. 4.5)", state));
                 }
             }
+            progress.advance(batch.size());
         }
         return scores;
     }
