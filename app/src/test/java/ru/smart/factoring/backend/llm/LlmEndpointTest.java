@@ -38,5 +38,7 @@ class LlmEndpointTest extends AbstractSmartFactoringBackendTest {
         assertThat(LlmApi.chat(PORT, Map.of("messages", List.of(Map.of("role", "user", "content", " ")))).status()).isEqualTo(400);
         assertThat(LlmApi.chat(PORT, Map.of("messages", List.of(Map.of("role", "user", "content", "x")), "temperature", 3)).status())
                 .isEqualTo(400);
+        assertThat(LlmApi.chat(PORT, Map.of("messages", List.of(Map.of("role", "user", "content", "x")), "model", "bad model!")).status())
+                .isEqualTo(400);
     }
 }

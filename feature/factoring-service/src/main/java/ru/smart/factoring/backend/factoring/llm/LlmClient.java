@@ -11,7 +11,7 @@ import java.util.List;
 public interface LlmClient {
 
     /**
-     * Модель для журнала и версий (НФР-6), например GigaChat.
+     * Модель по умолчанию (GIGACHAT_MODEL стенда) - для журнала и версий (НФР-6), например GigaChat.
      */
     String model();
 
@@ -31,8 +31,13 @@ public interface LlmClient {
     /**
      * @param temperature null - по умолчанию модели
      * @param maxTokens   null - по умолчанию модели
+     * @param model       модель для этого запроса; null или пусто - модель по умолчанию ({@link #model()})
      */
-    record CompletionRequest(List<Message> messages, Double temperature, Integer maxTokens) {
+    record CompletionRequest(List<Message> messages, Double temperature, Integer maxTokens, String model) {
+
+        public CompletionRequest(final List<Message> messages, final Double temperature, final Integer maxTokens) {
+            this(messages, temperature, maxTokens, null);
+        }
     }
 
     /**
