@@ -38,6 +38,7 @@ public class RunExecutor {
         final long runId = context.getRunId();
         final long started = System.nanoTime();
         runLog.info(runId, null, "RUN_STARTED", "Прогон запущен, дата расчёта " + context.getCalcDate());
+        context.onProgress((stepNo, snapshot) -> saveProgress(runId, stepNo, snapshot));
         for (final RunStep step : steps) {
             runRepository.stepStarted(runId, step.stepNo());
             final RunStep.Result result;
@@ -64,6 +65,18 @@ public class RunExecutor {
         runLog.info(runId, null, "RUN_FINISHED", "Прогон завершён: " + status + ", " + duration.toMillis() + " мс");
         if (duration.toMinutes() >= context.getParameters().maxDurationMinutes()) {
             runLog.warn(runId, null, "RUN_TOO_LONG", "Прогон дольше " + context.getParameters().maxDurationMinutes() + " минут (НФР-1.1)");
+        }
+    }
+
+    /**
+     * Прогресс - только для экрана: сбой его записи не должен ронять шаг (пишется и из потоков текстов LLM).
+     */
+    @SuppressWarnings("checkstyle:IllegalCatch")
+    private void saveProgress(final long runId, final int stepNo, final StepProgress.Snapshot snapshot) {
+        try {
+            runRepository.stepProgress(runId, stepNo, json.write(snapshot));
+        } catch (RuntimeException e) {
+            log.warn("Прогон {}: прогресс шага {} не записан: {}", runId, stepNo, e.getMessage());
         }
     }
 }

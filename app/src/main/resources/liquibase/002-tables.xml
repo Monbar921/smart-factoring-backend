@@ -736,4 +736,12 @@
         </sql>
     </changeSet>
 
+    <!-- Р-57: прогресс долгой части шага для экрана процесса (процент и оставшееся время) -->
+    <changeSet id="SMF-33-run-step-progress" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".run_step add column progress jsonb;
+            comment on column "${schema}".run_step.progress is 'Прогресс долгой части шага: label, done, total, since (Р-57)';
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

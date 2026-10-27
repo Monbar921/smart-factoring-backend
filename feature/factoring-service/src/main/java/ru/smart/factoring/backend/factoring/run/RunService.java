@@ -17,6 +17,7 @@ import ru.smart.factoring.backend.api.run.RunListItemDto;
 import ru.smart.factoring.backend.api.run.RunLogEntryDto;
 import ru.smart.factoring.backend.api.run.RunStatus;
 import ru.smart.factoring.backend.api.run.RunStepDto;
+import ru.smart.factoring.backend.api.run.RunStepProgressDto;
 import ru.smart.factoring.backend.api.run.StartRunRequest;
 import ru.smart.factoring.backend.api.run.StepStatus;
 import ru.smart.factoring.backend.factoring.error.ApiException;
@@ -98,7 +99,7 @@ public class RunService {
         final List<RunStepDto> steps = runRepository.findSteps(runId).stream()
                 .map(step -> new RunStepDto(step.stepNo(), names.get(step.stepNo()), StepStatus.valueOf(step.status()),
                         step.startedAt(), step.finishedAt(), durationMs(step.startedAt(), step.finishedAt()),
-                        json.readMap(step.metrics())))
+                        json.readMap(step.metrics()), json.read(step.progress(), RunStepProgressDto.class)))
                 .toList();
         final Long durationMs = durationMs(run.startedAt(), run.finishedAt() != null ? run.finishedAt() : OffsetDateTime.now());
         return new RunDto(run.id(), RunStatus.valueOf(run.status()), run.calcDate(), json.read(run.clientInns(), STRING_LIST),

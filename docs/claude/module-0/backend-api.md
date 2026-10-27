@@ -73,12 +73,18 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
       "metrics": { "clients": 6, "newUpds": 37, "payments": 13, "buyers": 10, "buyersWithoutData": 1, "dataDate": "2026-10-24" } },
     { "stepNo": 2, "status": "DONE", "metrics": { "paymentsAllocated": 12, "paymentsUnallocated": 1, "amountUnallocated": 500000.00, "updsClosed": 9 } },
     { "stepNo": 3, "status": "DONE", "metrics": { "openUpds": 28, "byCategory": { "1": 15, "2": 9, "3": 1, "5": 1, "6": 1, "7": 1, "8": 1 }, "overdueNotifications": 4, "riskSignals": 1 } },
-    { "stepNo": 4, "status": "RUNNING", "metrics": null },
-    { "stepNo": 5, "status": "PENDING", "metrics": null }
+    { "stepNo": 4, "status": "RUNNING", "metrics": null,
+      "progress": { "label": "Модель задержки по УПД", "done": 400, "total": 1200, "since": "2026-10-28T10:00:05+03:00" } },
+    { "stepNo": 5, "status": "PENDING", "metrics": null, "progress": null }
   ],
   "comparison": { "clients": 6, "manualMinutes": 1200, "systemMinutes": 120, "runDurationMs": 41000 }
 }
 ```
+
+`progress` (Р-57) — долгая часть шага: `label` — что считается, `done` из `total`, `since` — начало этой части; null — у
+шага её нет. Пишется: шаг 4 — «Оценка PD» (покупатели, которых нет в кэше PD) и «Модель задержки по УПД», шаг 5 —
+«Тексты карточек (provider)». Обновляется в БД не чаще раза в секунду; экран считает процент и оставшееся время
+`(сейчас − since) / done × (total − done)`. После завершения шага остаётся последним значением (`done = total`).
 
 Метрики шагов 4 и 5 (ЭП-3):
 - шаг 4: `stopFactorBuyers`, `noPaymentHistoryBuyers`, `lowDataBuyers`, `buyersByRiskLevel {A,B,C,D}`, `delayProbableUpds`,

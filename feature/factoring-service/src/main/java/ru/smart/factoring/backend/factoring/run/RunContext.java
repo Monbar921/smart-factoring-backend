@@ -1,5 +1,6 @@
 package ru.smart.factoring.backend.factoring.run;
 
+import lombok.AccessLevel;
 import lombok.Getter;
 import ru.smart.factoring.backend.factoring.parameter.RunParameters;
 
@@ -8,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 /**
  * Состояние одного прогона, общее для его шагов.
@@ -28,6 +30,10 @@ public class RunContext {
     private final Map<String, Object> modelVersions = new ConcurrentHashMap<>();
     private final Map<Class<?>, Object> attributes = new ConcurrentHashMap<>();
     private final AtomicBoolean warnings = new AtomicBoolean();
+    /** куда пишется прогресс шагов: шаг и снимок прогресса; без исполнителя (в тестах шагов) - никуда */
+    @Getter(AccessLevel.NONE)
+    private volatile BiConsumer<Integer, StepProgress.Snapshot> progressSink = (stepNo, snapshot) -> {
+    };
 
     public RunContext(final long runId, final LocalDate calcDate, final List<String> clientInns, final RunParameters parameters) {
         this.runId = runId;
@@ -46,6 +52,17 @@ public class RunContext {
             throw new IllegalStateException("В прогоне " + runId + " нет результата " + type.getSimpleName());
         }
         return type.cast(value);
+    }
+
+    /**
+     * Прогресс долгой части шага (ЭП-2): экран процесса показывает процент и оставшееся время.
+     */
+    public StepProgress progress(final int stepNo, final String label, final int total) {
+        return new StepProgress(label, total, snapshot -> progressSink.accept(stepNo, snapshot));
+    }
+
+    void onProgress(final BiConsumer<Integer, StepProgress.Snapshot> sink) {
+        progressSink = sink;
     }
 
     /**

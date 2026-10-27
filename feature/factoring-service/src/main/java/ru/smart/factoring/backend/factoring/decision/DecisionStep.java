@@ -13,6 +13,7 @@ import ru.smart.factoring.backend.factoring.model.UpdState;
 import ru.smart.factoring.backend.factoring.run.RunContext;
 import ru.smart.factoring.backend.factoring.run.RunLog;
 import ru.smart.factoring.backend.factoring.run.RunStep;
+import ru.smart.factoring.backend.factoring.run.StepProgress;
 import ru.smart.factoring.backend.factoring.scoring.ScoringResult;
 
 import java.math.BigDecimal;
@@ -74,7 +75,7 @@ public class DecisionStep implements RunStep {
                 context.getParameters());
 
         final long started = System.nanoTime();
-        final List<OfferPublisher.Offer> offers = explain(decisions.stream().filter(DecisionEngine.Decision::offer).toList());
+        final List<OfferPublisher.Offer> offers = explain(context, decisions.stream().filter(DecisionEngine.Decision::offer).toList());
         context.getModelVersions().put("llm", explainer.provider());
         final Map<Explainer.Source, Long> textSources = logTexts(context, offers, Duration.ofNanos(System.nanoTime() - started));
 
@@ -119,11 +120,16 @@ public class DecisionStep implements RunStep {
 
     /**
      * Тексты LLM - параллельно (llmTaskExecutor): последовательно сотни вызовов GigaChat не уложились бы в НФР-1.1.
+     * Это самая долгая часть прогона (сотни запросов к LLM) - экран видит, сколько карточек готово (Р-57).
      */
-    private List<OfferPublisher.Offer> explain(final List<DecisionEngine.Decision> decisions) {
+    private List<OfferPublisher.Offer> explain(final RunContext context, final List<DecisionEngine.Decision> decisions) {
+        final StepProgress progress = context.progress(STEP_NO, "Тексты карточек (" + explainer.provider() + ")", decisions.size());
         final List<CompletableFuture<OfferPublisher.Offer>> futures = decisions.stream()
-                .map(decision -> CompletableFuture.supplyAsync(() -> new OfferPublisher.Offer(decision, explainer.explain(decision)),
-                        llmTaskExecutor))
+                .map(decision -> CompletableFuture.supplyAsync(() -> {
+                    final OfferPublisher.Offer offer = new OfferPublisher.Offer(decision, explainer.explain(decision));
+                    progress.advance();
+                    return offer;
+                }, llmTaskExecutor))
                 .toList();
         return futures.stream().map(CompletableFuture::join).toList();
     }
