@@ -159,3 +159,35 @@
 Оценки моделей (PD, задержка) в выгрузку не входят — их считает сервис моделей. Для тестов с заглушкой
 у фикстуры есть отдельные `stub_buyer_scores.csv` и `stub_upd_scores.csv`: какие ответы заглушка возвращает
 по контрольным случаям.
+
+## Партии ML-команды (контракт данных v1.0, Р-54)
+
+Тот же импорт (`POST /demo/import`, папка или ZIP) принимает партии ML-команды — `smart-factoring-ml`,
+`ml/delay/delivery/batch_01…05`. Формат определяется по `manifest.json`: есть `contract_version` — партия,
+есть `format_version` — выгрузка генератора. Партия переводится в таблицы формата генератора и дальше идёт
+обычным путём: те же проверки ссылок, та же дельта (повторная загрузка партии — всё «без изменений»).
+Партии независимы, грузятся по одной в любом порядке.
+
+Правила партии: CSV через **запятую**, UTF-8, даты `YYYY-MM-DD`, пустая ячейка — пусто. Нужны все шесть файлов;
+число строк и SHA-256 каждого сверяются с `manifest.json` (`files`), расхождение — отказ.
+
+| Партия | Куда | Как переводится |
+|---|---|---|
+| `manifest.json`: `D_end`, `batch_id`, `generator_version`, `seed`, `pd_model_version` | `demo_import_batch` (вид `DELIVERY`) | `D_end` — дата данных (= последней дате УПД и платежей); `source_name` — `batch_id generator_version` |
+| `clients.csv`: `client_id`, `client_inn`, `client_name`, `industry`, `region`, `abs_liquidity`, `receivable_days`, `core`, `manager_id`, `edo_consent` | `demo_client` | `client_id` — только для связей; отрасль `торговля / производство / профессиональные_услуги / строительство` → `TRADE / MANUFACTURING / PROFESSIONAL / CONSTRUCTION`; `1/0` → да/нет; `receivable_days` округляется до дней; `factoring_client` — нет |
+| `manager_id` клиентов | `demo_manager` | менеджеры достраиваются: код `MG-010`, имя «Менеджер MG-010» |
+| `buyers.csv`: `buyer_inn`, `snapshot_date`, `okved_section`, `region`, `age_years`, `pd` | `demo_buyer` | наименования нет — «ИНН …»; дата регистрации — `snapshot_date` минус `age_years`; `pd` — с версией `pd_model_version` (ниже) |
+| `buyers_status.csv`: `egrul_status`, `bankruptcy_efrsb`, `event_date` | `demo_egrul_status`, `demo_bankruptcy_case` | статус ЕГРЮЛ как есть (`ликвидация`, `исключение` — стоп-факторы), дата статуса — `event_date`; `bankruptcy_efrsb = 1` — незакрытое дело «б/н» на стадии «Наблюдение» с `event_date` (стоп-фактор «банкротство») |
+| `contracts.csv`: `contract_id`, `contract_number`, `client_id`, `buyer_inn`, `contract_date`, `deferral_days` | `demo_contract` | `client_id` → ИНН клиента |
+| `upd.csv`: `upd_number`, `upd_date`, `client_id`, `buyer_inn`, `contract_id`, `amount_rub` | `demo_upd` | `contract_id` → номер договора; `plan_pay_date` не нужен — срок оплаты считается по отсрочке договора (в партиях совпадает) |
+| `payments.csv`: `payment_id`, `pay_date`, `client_id`, `buyer_inn`, `amount_rub`, `purpose` | `demo_payment` | `payment_id` → `source_id`, `buyer_inn` → плательщик |
+
+Не используются: `delay_scores.csv` (эталон модели задержки для сверки), `category`, `stop_type`, `low_data_reason`,
+`risk_level` и показатели покупателя из `buyers.csv` — категории, стоп-факторы и уровни продукт определяет сам.
+
+**PD.** Отчётности покупателей в партии нет, поэтому модель PD по ним считать нечем — по каждому покупателю был бы
+базовый PD «мало данных». Вместо этого готовый `pd` партии (результат модели `pd_model_version` на дату снимка)
+блок 1 записывает в кэш PD (`buyer_pd_cache`) под этой версией. Если сервис моделей работает той же версией
+(по умолчанию `pd-1.0`), блок 4 берёт PD из кэша; другая версия модели (например, эвристика) — кэш не подходит,
+PD считается сервисом. Уровень риска — по порогам backend (Р-13), а не `risk_level` партии. Покупатели «мало данных»
+(пустой `pd`) идут в модель и получают базовый PD.

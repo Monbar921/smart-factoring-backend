@@ -37,7 +37,7 @@ import java.util.zip.ZipInputStream;
 
 /**
  * Импорт демо-данных в таблицы demo_* (ДД-1): выгрузка генератора и events.csv
- * (формат - docs/claude/module-0/demo-dataset-format.md).
+ * (формат - docs/claude/module-0/demo-dataset-format.md), партия ML-команды - {@link DeliveryBatch}.
  * <p>
  * Импорт - дельта (Р-52): новые записи добавляются, существующие (по естественному ключу) обновляются, ничего
  * не удаляется; история прогонов и решения менеджеров сохраняются. Строка, у которой при том же ключе изменилось
@@ -74,7 +74,8 @@ public class DemoImportService {
             List.of(), List.of("name", "industry", "okved_section", "region", "abs_liquidity", "ar_turnover_days", "is_core",
             "manager_code", "edo_consent", "factoring_client", CONTROL_CASE), false, List.of());
     private static final SourceUpsert BUYERS = new SourceUpsert("buyers", "demo_buyer", "buyers.csv", List.of("inn"), Set.of(),
-            List.of(), List.of("ogrn", "name", "okved", "okved_section", "region", "registration_date", "data_date"), false, List.of());
+            List.of(), List.of("ogrn", "name", "okved", "okved_section", "region", "registration_date", "data_date", "pd",
+            "pd_model_version"), false, List.of());
     private static final SourceUpsert FINANCIALS = new SourceUpsert("buyerFinancials", "demo_buyer_financials", "buyer_financials.csv",
             List.of("inn", "year"), Set.of(), List.of(),
             Stream.of(List.of("simplified"), FINANCIAL_COLUMNS, List.of("data_date")).flatMap(List::stream).toList(), false, List.of());
@@ -119,13 +120,32 @@ public class DemoImportService {
         return path;
     }
 
+    /**
+     * Выгрузка генератора или партия ML-команды (Р-54) - формат определяется по manifest.json.
+     */
     public DemoImportResultDto importGenerator(final Path dir) {
         final Path root = findRoot(dir);
         final ImportValidator v = new ImportValidator();
         final ImportReport report = new ImportReport();
-        final Map<String, Object> manifest = readManifest(root, v);
-        final Tables tables = readGeneratorTables(root, v);
-        final EfrsbTables efrsb = Files.exists(root.resolve(EVENTS)) ? readEfrsb(root.resolve(EVENTS), v) : null;
+        final Map<String, Object> source = readManifest(root, v);
+        final boolean delivery = DeliveryBatch.matches(source);
+        final Map<String, Object> manifest;
+        final Tables tables;
+        final EfrsbTables efrsb;
+        if (delivery) {
+            final DeliveryBatch.Converted batch = DeliveryBatch.read(root, source, v);
+            manifest = batch.manifest();
+            tables = batch.tables();
+            efrsb = batch.efrsb();
+        } else {
+            if (!source.isEmpty() && !FORMAT_VERSION.equals(stringValue(source.get("format_version")))) {
+                v.error(MANIFEST, null, "format_version должен быть " + FORMAT_VERSION
+                        + " (или contract_version " + DeliveryBatch.CONTRACT_VERSION + " для партии ML-команды)");
+            }
+            manifest = source;
+            tables = readGeneratorTables(root, v);
+            efrsb = Files.exists(root.resolve(EVENTS)) ? readEfrsb(root.resolve(EVENTS), v) : null;
+        }
         if (tables.isEmpty() && efrsb == null) {
             v.error(MANIFEST, null, "в выгрузке нет ни одного файла с данными");
         }
@@ -141,7 +161,8 @@ public class DemoImportService {
             if (efrsb != null) {
                 counts.putAll(writeEfrsb(efrsb, report));
             }
-            return finish("GENERATOR", stringValue(manifest.get("format_version")),
+            return finish(delivery ? "DELIVERY" : "GENERATOR",
+                    stringValue(delivery ? source.get("contract_version") : manifest.get("format_version")),
                     manifest.get("seed") instanceof Number seed ? seed.longValue() : null, snapshotDate,
                     stringValue(manifest.get("generator")), counts, report);
         });
@@ -234,11 +255,7 @@ public class DemoImportService {
             return Map.of();
         }
         try {
-            final Map<String, Object> manifest = json.readMap(Files.readString(file));
-            if (!FORMAT_VERSION.equals(stringValue(manifest.get("format_version")))) {
-                v.error(MANIFEST, null, "format_version должен быть " + FORMAT_VERSION);
-            }
-            return manifest;
+            return json.readMap(Files.readString(file));
         } catch (IOException | RuntimeException e) {
             v.error(MANIFEST, null, "не JSON: " + e.getMessage());
             return Map.of();
@@ -495,7 +512,8 @@ public class DemoImportService {
                 .addValue("name", row.get("name")).addValue("okved", row.get("okved"))
                 .addValue("okved_section", row.get("okved_section")).addValue("region", row.get("region"))
                 .addValue("registration_date", date(row.get("registration_date")))
-                .addValue("data_date", date(row.get("data_date"))));
+                .addValue("data_date", date(row.get("data_date")))
+                .addValue("pd", decimal(row.get("pd"))).addValue("pd_model_version", row.get("pd_model_version")));
         write(FINANCIALS, t.financials(), Set.of(), counts, report, (row, p) -> {
             p.addValue("inn", row.get("inn")).addValue("year", integer(row.get("year")))
                     .addValue("simplified", Boolean.TRUE.equals(bool(row.get("simplified"))))
@@ -683,7 +701,7 @@ public class DemoImportService {
         void bind(Csv.Row row, MapSqlParameterSource params);
     }
 
-    private record Tables(Csv.Table managers, Csv.Table clients, Csv.Table buyers, Csv.Table financials, Csv.Table contracts,
+    record Tables(Csv.Table managers, Csv.Table clients, Csv.Table buyers, Csv.Table financials, Csv.Table contracts,
                           Csv.Table upds, Csv.Table payments) {
 
         boolean isEmpty() {
@@ -697,7 +715,7 @@ public class DemoImportService {
     private record Existing(Set<String> managers, Set<String> clients, Map<String, String> contracts) {
     }
 
-    private record EfrsbTables(List<MapSqlParameterSource> statuses, List<MapSqlParameterSource> cases,
+    record EfrsbTables(List<MapSqlParameterSource> statuses, List<MapSqlParameterSource> cases,
                                List<MapSqlParameterSource> events, LocalDate snapshotDate) {
     }
 }

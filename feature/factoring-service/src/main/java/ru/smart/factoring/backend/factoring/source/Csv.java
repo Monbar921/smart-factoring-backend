@@ -11,7 +11,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Разбор CSV формата демо-данных: UTF-8 (BOM допускается), разделитель ';', кавычки по RFC 4180, первая строка - заголовок.
+ * Разбор CSV формата демо-данных: UTF-8 (BOM допускается), разделитель ';' (в партиях ML-команды - ','), кавычки по RFC 4180,
+ * первая строка - заголовок.
  * Пустое значение - null.
  */
 public final class Csv {
@@ -22,16 +23,24 @@ public final class Csv {
     }
 
     public static Table read(final Path file) {
+        return read(file, SEPARATOR);
+    }
+
+    public static Table read(final Path file, final char separator) {
         try {
-            return parse(Files.readString(file, StandardCharsets.UTF_8));
+            return parse(Files.readString(file, StandardCharsets.UTF_8), separator);
         } catch (IOException e) {
             throw new UncheckedIOException("Не прочитать " + file, e);
         }
     }
 
     public static Table parse(final String content) {
+        return parse(content, SEPARATOR);
+    }
+
+    public static Table parse(final String content, final char separator) {
         final String text = content.startsWith("﻿") ? content.substring(1) : content;
-        final List<List<String>> records = records(text);
+        final List<List<String>> records = records(text, separator);
         if (records.isEmpty()) {
             return new Table(List.of(), List.of());
         }
@@ -52,7 +61,7 @@ public final class Csv {
         return new Table(header, rows);
     }
 
-    private static List<List<String>> records(final String text) {
+    private static List<List<String>> records(final String text, final char separator) {
         final List<List<String>> records = new ArrayList<>();
         List<String> record = new ArrayList<>();
         final StringBuilder field = new StringBuilder();
@@ -70,7 +79,7 @@ public final class Csv {
                 }
             } else if (c == QUOTE) {
                 quoted = true;
-            } else if (c == SEPARATOR) {
+            } else if (c == separator) {
                 record.add(field.toString());
                 field.setLength(0);
             } else if (c == '\n') {

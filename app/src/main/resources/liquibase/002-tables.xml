@@ -682,4 +682,16 @@
         </sql>
     </changeSet>
 
+    <!-- Р-54: партии ML-команды (контракт данных v1.0) - без отчётности покупателей, с готовым PD модели -->
+    <changeSet id="SMF-33-delivery-batch" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".demo_import_batch drop constraint demo_import_batch_kind_check;
+            alter table "${schema}".demo_import_batch add constraint demo_import_batch_kind_check
+                check (kind in ('GENERATOR', 'EFRSB', 'DELIVERY'));
+            alter table "${schema}".demo_buyer add column pd numeric(9, 6);
+            alter table "${schema}".demo_buyer add column pd_model_version varchar(64);
+            comment on column "${schema}".demo_buyer.pd is 'Готовый PD из партии ML-команды: кэш PD версии pd_model_version (Р-54)';
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

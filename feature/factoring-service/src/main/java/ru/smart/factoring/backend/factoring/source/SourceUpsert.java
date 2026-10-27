@@ -58,6 +58,8 @@ record SourceUpsert(String name, String table, String file, List<String> keys, S
         execute(() -> jdbc.batchUpdate("insert into " + stage + " (" + columns + ", line) values ("
                         + columns().stream().map(column -> ":" + column).collect(Collectors.joining(", ")) + ", :line)",
                 rows.stream().map(row -> row.values().addValue("line", row.line())).toArray(MapSqlParameterSource[]::new)));
+        // у временной таблицы нет статистики: без неё планировщик считает её пустой и сравнивает строки перебором
+        jdbc.getJdbcTemplate().execute("analyze " + stage);
 
         final int conflicts = conflicts(jdbc, stage, report);
         if (reportChanges) {
@@ -128,8 +130,7 @@ record SourceUpsert(String name, String table, String file, List<String> keys, S
                 + "other as (select " + content + " from " + table + " union all select " + content + " from fresh) "
                 + "select f.line, " + keys.stream().map(key -> "f." + key + " as k_" + key + ", o." + key + " as d_" + key)
                 .collect(Collectors.joining(", "))
-                + " from fresh f join other o on " + duplicateBy.stream()
-                .map(column -> "o." + column + " is not distinct from f." + column).collect(Collectors.joining(" and "))
+                + " from fresh f join other o on " + contentRow("o") + " = " + contentRow("f")
                 + " and row(" + keys.stream().map(key -> "o." + key).collect(Collectors.joining(", ")) + ") is distinct from row("
                 + keys.stream().map(key -> "f." + key).collect(Collectors.joining(", ")) + ") order by f.line");
         final Set<String> pairs = new HashSet<>();
@@ -142,6 +143,14 @@ record SourceUpsert(String name, String table, String file, List<String> keys, S
                         "возможный дубль " + other + ": совпадают " + String.join(", ", duplicateBy) + " - загружено, проверьте");
             }
         }
+    }
+
+    /**
+     * Содержание записи одной строкой: сравнение «=» по ней хешируется (с «is not distinct from» по колонкам - перебор
+     * всех пар), null совпадает с null. Типы колонок у таблицы и временной таблицы одни, поэтому 1500000.00 = 1500000.00.
+     */
+    private String contentRow(final String alias) {
+        return "row(" + duplicateBy.stream().map(column -> alias + "." + column).collect(Collectors.joining(", ")) + ")::text";
     }
 
     /**
