@@ -48,8 +48,12 @@ public interface ModelClient {
                     BigDecimal amount, BigDecimal outstanding, LocalDate updDate, LocalDate plannedDueDate, int deferralDays) {
     }
 
-    record HistoryUpd(String clientInn, String buyerInn, BigDecimal amount, LocalDate updDate, LocalDate plannedDueDate,
-                      String status, LocalDate paidDate, BigDecimal outstanding) {
+    /**
+     * @param updId  id УПД - тот же, что у DelayUpd: история содержит и оцениваемые УПД, модель задержки их сопоставляет
+     * @param number номер УПД - порядок УПД пары, подписанных в один день (модель задержки)
+     */
+    record HistoryUpd(String updId, String number, String clientInn, String buyerInn, BigDecimal amount, LocalDate updDate,
+                      LocalDate plannedDueDate, String status, LocalDate paidDate, BigDecimal outstanding) {
     }
 
     record DelayRequest(LocalDate calcDate, int delayThresholdDays, List<Buyer> buyers, List<DelayUpd> upds,

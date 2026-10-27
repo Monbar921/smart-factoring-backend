@@ -131,7 +131,8 @@ public class ScoringStep implements RunStep {
             if (state.upd().buyerId() == null || !buyerIds.contains(state.upd().buyerId())) {
                 continue;
             }
-            history.add(new ModelClient.HistoryUpd(clients.get(state.upd().clientId()).inn(), state.upd().buyerInn(),
+            history.add(new ModelClient.HistoryUpd(String.valueOf(state.upd().id()), state.upd().number(),
+                    clients.get(state.upd().clientId()).inn(), state.upd().buyerInn(),
                     state.upd().amount(), state.upd().updDate(), state.plannedDueDate(), state.open() ? "OPEN" : "PAID",
                     state.paidDate(), state.outstanding()));
         }
