@@ -33,7 +33,8 @@ class MlServiceManualTest extends AbstractSmartFactoringBackendTest {
         System.out.println("ML STEP 5 " + Fixture.metrics(run, 5));
 
         assertThat(run.get("status").asString()).isEqualTo("DONE");
-        assertThat(run.get("modelVersions").get("pd").asString()).isEqualTo("pd-heuristic-1");
+        // эвристики сервиса или обученные модели коллеги (по умолчанию в образе)
+        assertThat(run.get("modelVersions").get("pd").asString()).isIn("pd-heuristic-1", "pd-1.0");
         assertThat(Fixture.metrics(run, 4).get("scoringErrors").asInt()).isZero();
         assertThat(Fixture.metrics(run, 5).get("offers").asInt()).isPositive();
         TestDatabase.clean(jdbcTemplate);

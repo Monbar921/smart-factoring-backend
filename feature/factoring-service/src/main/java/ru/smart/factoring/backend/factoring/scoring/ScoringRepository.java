@@ -76,7 +76,8 @@ public class ScoringRepository {
             return List.of();
         }
         return jdbc.query("""
-                        select distinct on (us.upd_id) c.inn as client_inn, u.buyer_inn, u.amount, u.upd_date, us.planned_due_date,
+                        select distinct on (us.upd_id) u.id, u.number, c.inn as client_inn, u.buyer_inn, u.amount, u.upd_date,
+                               us.planned_due_date,
                                us.paid_date, us.outstanding, u.amount - coalesce(us.paid_amount, 0) as open_amount
                         from upd_state us
                         join run r on r.id = us.run_id and r.status in ('DONE', 'DONE_WITH_WARNINGS')
@@ -91,7 +92,8 @@ public class ScoringRepository {
                 (rs, rowNum) -> {
                     final LocalDate paidDate = rs.getObject("paid_date", LocalDate.class);
                     final boolean paid = paidDate != null && !paidDate.isAfter(calcDate);
-                    return new ModelClient.HistoryUpd(rs.getString("client_inn"), rs.getString("buyer_inn"), rs.getBigDecimal("amount"),
+                    return new ModelClient.HistoryUpd(String.valueOf(rs.getLong("id")), rs.getString("number"), rs.getString("client_inn"),
+                            rs.getString("buyer_inn"), rs.getBigDecimal("amount"),
                             rs.getObject("upd_date", LocalDate.class), rs.getObject("planned_due_date", LocalDate.class),
                             paid ? "PAID" : "OPEN", paid ? paidDate : null, paid ? BigDecimal.ZERO : rs.getBigDecimal("open_amount"));
                 });
