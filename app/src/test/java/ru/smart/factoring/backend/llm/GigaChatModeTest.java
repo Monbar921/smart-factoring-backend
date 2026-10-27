@@ -138,6 +138,16 @@ class GigaChatModeTest extends AbstractSmartFactoringBackendTest {
         assertThat(GIGA_CHAT.chatRequests).singleElement().satisfies(request -> assertThat(request)
                 .contains("{\"role\":\"system\",\"content\":\"Ты аналитик\"}")
                 .contains("\"temperature\":0.1")
-                .contains("\"max_tokens\":50"));
+                .contains("\"max_tokens\":50")
+                .contains("\"model\":\"GigaChat\""));
+    }
+
+    @Test
+    void callerChoosesModel() {
+        final Api.Response response = LlmApi.chat(port, Map.of(
+                "messages", List.of(Map.of("role", "user", "content", "Привет")), "model", "GigaChat-2-Pro"));
+
+        assertThat(response.status()).isEqualTo(200);
+        assertThat(GIGA_CHAT.chatRequests).singleElement().asString().contains("\"model\":\"GigaChat-2-Pro\"");
     }
 }

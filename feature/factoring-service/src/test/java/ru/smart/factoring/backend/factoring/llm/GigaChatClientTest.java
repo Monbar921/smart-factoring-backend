@@ -199,6 +199,31 @@ class GigaChatClientTest {
     }
 
     @Test
+    void callerChoosesModelOrGetsDefault() {
+        final GigaChatClient client = client(4);
+        final List<LlmClient.Message> messages = List.of(new LlmClient.Message("user", "Оцени покупателя"));
+
+        client.complete(new LlmClient.CompletionRequest(messages, null, null, "GigaChat-2-Pro"));
+        client.complete(new LlmClient.CompletionRequest(messages, null, null, " "));
+        client.complete(new LlmClient.CompletionRequest(messages, null, null));
+
+        assertThat(chatRequests.get(0)).contains("\"model\":\"GigaChat-2-Pro\"");
+        assertThat(chatRequests.get(1)).contains("\"model\":\"GigaChat\"");
+        assertThat(chatRequests.get(2)).contains("\"model\":\"GigaChat\"");
+    }
+
+    @Test
+    void unknownRequestedModelPointsToRequestField() {
+        chatStatuses.add(404);
+        chatErrorBody = "{\"status\":404,\"message\":\"No such model\"}";
+
+        assertThatThrownBy(() -> client(4).complete(new LlmClient.CompletionRequest(
+                List.of(new LlmClient.Message("user", "x")), null, null, "GigaChat-9")))
+                .hasMessageContaining("модель 'GigaChat-9' не найдена")
+                .hasMessageContaining("доступны: GigaChat-2, GigaChat-2-Pro - передайте одну из них в model");
+    }
+
+    @Test
     void requiresAuthKey() {
         assertThatThrownBy(() -> new GigaChatClient(properties(" "), 1))
                 .isInstanceOf(IllegalStateException.class)

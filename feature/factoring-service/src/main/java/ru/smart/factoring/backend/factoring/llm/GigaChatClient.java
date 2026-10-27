@@ -89,17 +89,18 @@ public class GigaChatClient implements LlmClient {
 
     @Override
     public Completion complete(final CompletionRequest request) {
-        final String body = body(request);
+        final String requested = request.model() == null || request.model().isBlank() ? model : request.model().trim();
+        final String body = body(request, requested);
         return guarded(() -> {
             final Reply reply = withRetries(() -> send(client.post()
                     .uri(properties.apiUrl() + "/chat/completions")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)));
             if (reply.status() == HttpStatus.NOT_FOUND.value() && reply.body().toLowerCase(Locale.ROOT).contains("model")) {
-                throw error("модель '" + model + "' не найдена в " + properties.apiUrl() + ", доступны: " + availableModels()
-                        + " - задайте одну из них в GIGACHAT_MODEL");
+                throw error("модель '" + requested + "' не найдена в " + properties.apiUrl() + ", доступны: " + availableModels()
+                        + (requested.equals(model) ? " - задайте одну из них в GIGACHAT_MODEL" : " - передайте одну из них в model"));
             }
-            return parse(checked(reply, "chat/completions"));
+            return parse(checked(reply, "chat/completions"), requested);
         });
     }
 
@@ -230,9 +231,9 @@ public class GigaChatClient implements LlmClient {
         throw error(message);
     }
 
-    private String body(final CompletionRequest request) {
+    private String body(final CompletionRequest request, final String requested) {
         final Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", model);
+        body.put("model", requested);
         body.put("messages", request.messages().stream()
                 .map(message -> {
                     final Map<String, String> item = new LinkedHashMap<>();
@@ -250,7 +251,7 @@ public class GigaChatClient implements LlmClient {
         return mapper.writeValueAsString(body);
     }
 
-    private Completion parse(final String body) {
+    private Completion parse(final String body, final String requested) {
         final JsonNode response = json(body);
         final JsonNode choice = response.path("choices").path(0);
         final String content = choice.path("message").path("content").asString(null);
@@ -258,7 +259,7 @@ public class GigaChatClient implements LlmClient {
             throw error("в ответе нет choices[0].message.content");
         }
         final JsonNode usage = response.path("usage");
-        return new Completion(content.trim(), response.path("model").asString(model),
+        return new Completion(content.trim(), response.path("model").asString(requested),
                 choice.path("finish_reason").asString(null),
                 new Usage(usage.path("prompt_tokens").asInt(0), usage.path("completion_tokens").asInt(0),
                         usage.path("total_tokens").asInt(0)));

@@ -37,7 +37,7 @@ public class LlmController {
     public LlmChatResponse complete(@Valid @RequestBody final LlmChatRequest request) {
         final LlmClient.Completion completion = llm.complete(new LlmClient.CompletionRequest(
                 request.messages().stream().map(message -> new LlmClient.Message(message.role(), message.content())).toList(),
-                request.temperature(), request.maxTokens()));
+                request.temperature(), request.maxTokens(), request.model()));
         return new LlmChatResponse(completion.content(), completion.model(), completion.finishReason(),
                 completion.usage().promptTokens(), completion.usage().completionTokens());
     }

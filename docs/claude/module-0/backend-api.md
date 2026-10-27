@@ -233,12 +233,15 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
 {
   "messages": [ { "role": "system", "content": "…" }, { "role": "user", "content": "…" } ],
   "temperature": 0.2,
-  "maxTokens": 300
+  "maxTokens": 300,
+  "model": "GigaChat-2-Pro"
 }
 ```
 
-`role` — `system` / `user` / `assistant`; `temperature` 0..2 и `maxTokens` необязательны. Модель выбирает backend
-(`GIGACHAT_MODEL`). Ответ `200`:
+`role` — `system` / `user` / `assistant`; `temperature` 0..2, `maxTokens` и `model` необязательны. `model` — модель
+GigaChat для этого запроса (латиница, цифры, `.`, `_`, `:`, `-`); не задана или пустая — модель стенда (`GIGACHAT_MODEL`).
+Доступные ключу модели — `GET /internal/rest/llm/models`. Неизвестная модель — `502 LLM_ERROR` со списком доступных.
+Ответ `200`:
 
 ```json
 { "content": "…", "model": "GigaChat:2.0.28.2", "finishReason": "stop", "promptTokens": 120, "completionTokens": 40 }
