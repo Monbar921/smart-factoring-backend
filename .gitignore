@@ -44,3 +44,6 @@ build/
 k8s/secret.yaml
 
 local_config
+
+# ZIP для импорта демо-данных (docs/claude/tools/build_demo_zips.py)
+/demo-upload/
