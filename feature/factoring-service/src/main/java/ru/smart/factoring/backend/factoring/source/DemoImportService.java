@@ -27,6 +27,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,6 +52,8 @@ import java.util.zip.ZipInputStream;
 public class DemoImportService {
     static final String FORMAT_VERSION = "1";
     private static final String MANIFEST = "manifest.json";
+    private static final String INDEX = "index.json";
+    private static final String DELIVERY = "DELIVERY";
     private static final String EVENTS = "events.csv";
     private static final String CONTROL_CASE = "control_case";
     private static final Set<String> INDUSTRIES = Set.of("CONSTRUCTION", "PROFESSIONAL", "MANUFACTURING", "TRADE");
@@ -121,12 +124,117 @@ public class DemoImportService {
     }
 
     /**
-     * Выгрузка генератора или партия ML-команды (Р-54) - формат определяется по manifest.json.
+     * Выгрузка генератора или партия ML-команды (Р-54) - формат определяется по manifest.json;
+     * набор партий с index.json - {@link #importIndex(Path)}.
      */
     public DemoImportResultDto importGenerator(final Path dir) {
-        final Path root = findRoot(dir);
+        final Path index = findIndex(dir);
+        if (index != null) {
+            return importIndex(index);
+        }
         final ImportValidator v = new ImportValidator();
         final ImportReport report = new ImportReport();
+        final Prepared prepared = prepare(findRoot(dir), v, report, existing());
+        if (v.hasErrors()) {
+            throw invalid(v);
+        }
+        return transactionTemplate.execute(status -> {
+            ensureNoRunningRun();
+            return finish(prepared.kind(), prepared.formatVersion(), prepared.seed(), prepared.snapshotDate(), prepared.sourceName(),
+                    writeAll(prepared, report), report);
+        });
+    }
+
+    /**
+     * Набор партий ML-команды (Р-55): index.json со списком партий (batch_id, path) и папки партий рядом с ним.
+     * Загружаются все партии из списка и только они, одной транзакцией: ошибка в любой партии отклоняет весь набор.
+     * Отчёт - общий, файлы в замечаниях - с папкой партии (batch_01/upd.csv).
+     */
+    private DemoImportResultDto importIndex(final Path indexFile) {
+        final Path base = indexFile.getParent();
+        final ImportValidator v = new ImportValidator();
+        final Map<String, Object> index = readJson(indexFile, INDEX, v);
+        if (!index.isEmpty() && !DeliveryBatch.CONTRACT_VERSION.equals(stringValue(index.get("contract_version")))) {
+            v.error(INDEX, null, "contract_version должен быть " + DeliveryBatch.CONTRACT_VERSION);
+        }
+        final List<?> entries = index.get("batches") instanceof List<?> list ? list : List.of();
+        if (!index.isEmpty() && entries.isEmpty()) {
+            v.error(INDEX, null, "нет списка партий batches");
+        }
+        final Existing existing = existing();
+        final List<Part> parts = new ArrayList<>();
+        final Set<String> ids = new LinkedHashSet<>();
+        final Set<Path> listed = new HashSet<>();
+        for (final Object entry : entries) {
+            final Map<?, ?> batch = entry instanceof Map<?, ?> map ? map : Map.of();
+            final String id = stringValue(batch.get("batch_id"));
+            final String path = stringValue(batch.get("path"));
+            if (id == null || path == null) {
+                v.error(INDEX, null, "у партии нет batch_id или path: " + entry);
+                continue;
+            }
+            final Path root = base.resolve(path).normalize();
+            if (!root.startsWith(base) || !Files.isRegularFile(root.resolve(MANIFEST))) {
+                v.error(INDEX, null, "партия " + id + ": нет папки " + path + " с manifest.json");
+                continue;
+            }
+            if (!ids.add(id) || !listed.add(root)) {
+                v.error(INDEX, null, "партия " + id + " (" + path + ") указана дважды");
+                continue;
+            }
+            final String folder = base.relativize(root).toString().replace('\\', '/') + "/";
+            final ImportReport report = new ImportReport();
+            v.prefix(folder);
+            final Prepared prepared = prepare(root, v, report, existing);
+            if (!prepared.kind().equals(DELIVERY)) {
+                v.error(MANIFEST, null, "не партия ML-команды: нет contract_version");
+            } else {
+                if (!id.equals(stringValue(prepared.source().get("batch_id")))) {
+                    v.error(MANIFEST, null, "batch_id " + prepared.source().get("batch_id") + ", в index.json - " + id);
+                }
+                if (index.get("D_end") != null && !Objects.equals(stringValue(index.get("D_end")), stringValue(prepared.source().get("D_end")))) {
+                    v.error(MANIFEST, null, "D_end " + prepared.source().get("D_end") + ", в index.json - " + index.get("D_end"));
+                }
+            }
+            v.prefix("");
+            parts.add(new Part(folder, prepared, report));
+        }
+        unlistedBatches(base, listed, v);
+        if (v.hasErrors()) {
+            throw invalid(v);
+        }
+        return transactionTemplate.execute(status -> {
+            ensureNoRunningRun();
+            final Map<String, Integer> counts = new LinkedHashMap<>();
+            final ImportReport total = new ImportReport();
+            LocalDate snapshotDate = null;
+            for (final Part part : parts) {
+                writeAll(part.prepared(), part.report()).forEach((table, rows) -> counts.merge(table, rows, Integer::sum));
+                total.add(part.report(), part.folder());
+                snapshotDate = max(snapshotDate, part.prepared().snapshotDate());
+            }
+            return finish(DELIVERY, stringValue(index.get("contract_version")), null, snapshotDate,
+                    "index.json: " + String.join(", ", ids), counts, total);
+        });
+    }
+
+    /**
+     * Папка с manifest.json рядом с index.json, но не из его списка - набор не совпадает с описанием.
+     */
+    private static void unlistedBatches(final Path base, final Set<Path> listed, final ImportValidator v) {
+        try (Stream<Path> dirs = Files.list(base)) {
+            dirs.filter(path -> Files.isRegularFile(path.resolve(MANIFEST)) && !listed.contains(path.normalize()))
+                    .sorted()
+                    .forEach(path -> v.error(INDEX, null, "папки " + path.getFileName() + " нет в списке партий"));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Чтение и проверка одной выгрузки или партии - до записи, без транзакции.
+     */
+    private Prepared prepare(final Path root, final ImportValidator v, final ImportReport report, final Existing existing) {
         final Map<String, Object> source = readManifest(root, v);
         final boolean delivery = DeliveryBatch.matches(source);
         final Map<String, Object> manifest;
@@ -150,22 +258,19 @@ public class DemoImportService {
             v.error(MANIFEST, null, "в выгрузке нет ни одного файла с данными");
         }
         final Set<Integer> skippedUpds = new HashSet<>();
-        validateGenerator(tables, manifest, existing(), v, report, skippedUpds);
-        if (v.hasErrors()) {
-            throw invalid(v);
+        validateGenerator(tables, manifest, existing, v, report, skippedUpds);
+        return new Prepared(delivery ? DELIVERY : "GENERATOR", source,
+                stringValue(delivery ? source.get("contract_version") : manifest.get("format_version")),
+                manifest.get("seed") instanceof Number seed ? seed.longValue() : null, date(manifest.get("snapshot_date")),
+                stringValue(manifest.get("generator")), tables, efrsb, skippedUpds);
+    }
+
+    private Map<String, Integer> writeAll(final Prepared prepared, final ImportReport report) {
+        final Map<String, Integer> counts = writeGenerator(prepared.tables(), report, prepared.skippedUpds());
+        if (prepared.efrsb() != null) {
+            counts.putAll(writeEfrsb(prepared.efrsb(), report));
         }
-        final LocalDate snapshotDate = date(manifest.get("snapshot_date"));
-        return transactionTemplate.execute(status -> {
-            ensureNoRunningRun();
-            final Map<String, Integer> counts = writeGenerator(tables, report, skippedUpds);
-            if (efrsb != null) {
-                counts.putAll(writeEfrsb(efrsb, report));
-            }
-            return finish(delivery ? "DELIVERY" : "GENERATOR",
-                    stringValue(delivery ? source.get("contract_version") : manifest.get("format_version")),
-                    manifest.get("seed") instanceof Number seed ? seed.longValue() : null, snapshotDate,
-                    stringValue(manifest.get("generator")), counts, report);
-        });
+        return counts;
     }
 
     public DemoImportResultDto importEfrsb(final Path file) {
@@ -247,17 +352,20 @@ public class DemoImportService {
 
     // ------------------------------------------------------------------ чтение и проверка выгрузки генератора
 
-    @SuppressWarnings("checkstyle:IllegalCatch")
     private Map<String, Object> readManifest(final Path root, final ImportValidator v) {
-        final Path file = root.resolve(MANIFEST);
+        return readJson(root.resolve(MANIFEST), MANIFEST, v);
+    }
+
+    @SuppressWarnings("checkstyle:IllegalCatch")
+    private Map<String, Object> readJson(final Path file, final String name, final ImportValidator v) {
         if (!Files.exists(file)) {
-            v.error(MANIFEST, null, "нет файла");
+            v.error(name, null, "нет файла");
             return Map.of();
         }
         try {
             return json.readMap(Files.readString(file));
         } catch (IOException | RuntimeException e) {
-            v.error(MANIFEST, null, "не JSON: " + e.getMessage());
+            v.error(name, null, "не JSON: " + e.getMessage());
             return Map.of();
         }
     }
@@ -631,6 +739,25 @@ public class DemoImportService {
         }
     }
 
+    /**
+     * index.json набора партий: в самом каталоге или в единственной вложенной папке (ZIP с папкой delivery внутри);
+     * null - это одна выгрузка.
+     */
+    private static Path findIndex(final Path dir) {
+        if (Files.isRegularFile(dir.resolve(INDEX))) {
+            return dir.resolve(INDEX);
+        }
+        if (Files.exists(dir.resolve(MANIFEST))) {
+            return null;
+        }
+        try (Stream<Path> files = Files.list(dir)) {
+            final List<Path> nested = files.filter(Files::isDirectory).toList();
+            return nested.size() == 1 && Files.isRegularFile(nested.getFirst().resolve(INDEX)) ? nested.getFirst().resolve(INDEX) : null;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private static Path unzip(final InputStream zip) {
         try {
             final Path dir = Files.createTempDirectory("demo-import");
@@ -713,6 +840,19 @@ public class DemoImportService {
      * Уже загруженные коды менеджеров, ИНН клиентов и договоры (клиент|номер → ИНН покупателя).
      */
     private record Existing(Set<String> managers, Set<String> clients, Map<String, String> contracts) {
+    }
+
+    /**
+     * Проверенная выгрузка, готовая к записи: вид и паспорт для demo_import_batch, таблицы, пропускаемые УПД.
+     */
+    private record Prepared(String kind, Map<String, Object> source, String formatVersion, Long seed, LocalDate snapshotDate,
+                            String sourceName, Tables tables, EfrsbTables efrsb, Set<Integer> skippedUpds) {
+    }
+
+    /**
+     * Партия набора: папка (префикс файлов в отчёте), проверенные данные, её отчёт.
+     */
+    private record Part(String folder, Prepared prepared, ImportReport report) {
     }
 
     record EfrsbTables(List<MapSqlParameterSource> statuses, List<MapSqlParameterSource> cases,

@@ -16,6 +16,12 @@ final class ImportValidator {
     private static final int MAX_ERRORS = 200;
 
     private final List<String> errors = new ArrayList<>();
+    /** папка партии в наборе (batch_01/) - перед именем файла в ошибках */
+    private String prefix = "";
+
+    void prefix(final String folder) {
+        prefix = folder;
+    }
 
     List<String> errors() {
         return errors;
@@ -27,7 +33,7 @@ final class ImportValidator {
 
     void error(final String file, final Integer line, final String message) {
         if (errors.size() < MAX_ERRORS) {
-            errors.add(line != null ? file + ":" + line + ": " + message : file + ": " + message);
+            errors.add(line != null ? prefix + file + ":" + line + ": " + message : prefix + file + ": " + message);
         }
     }
 

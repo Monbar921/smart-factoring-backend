@@ -43,6 +43,20 @@ final class ImportReport {
         }
     }
 
+    /**
+     * Отчёт партии набора - в общий: строки таблиц складываются, файлы замечаний - с папкой партии.
+     */
+    void add(final ImportReport part, final String folder) {
+        part.tables.forEach((name, stats) -> tables.merge(name, stats, (a, b) -> new DemoTableStatsDto(a.rows() + b.rows(),
+                a.inserted() + b.inserted(), a.updated() + b.updated(), a.unchanged() + b.unchanged(), a.conflicts() + b.conflicts())));
+        part.issueCounts.forEach((level, count) -> issueCounts.merge(level, count, Integer::sum));
+        for (final DemoImportIssueDto issue : part.issues) {
+            if (issues.size() < MAX_ISSUES) {
+                issues.add(new DemoImportIssueDto(issue.level(), folder + issue.file(), issue.line(), issue.key(), issue.message()));
+            }
+        }
+    }
+
     int count(final Level level) {
         return issueCounts.getOrDefault(level.name(), 0);
     }

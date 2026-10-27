@@ -1,0 +1,3 @@
+client_id,client_name,client_inn,industry,region,revenue_mln,abs_liquidity,receivable_days,core,manager_id,edo_consent
+CL-0101,Клиент 0101,0011618896,профессиональные_услуги,moscow city,1095.3,0.095,122.8,1,MG-017,1
+CL-0102,Клиент 0102,0067487349,производство,sankt-petersburg,940.6,0.064,92.8,1,MG-016,1

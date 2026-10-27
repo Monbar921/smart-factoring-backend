@@ -52,6 +52,8 @@ record SourceUpsert(String name, String table, String file, List<String> keys, S
         }
         final String stage = "stg_" + table;
         final String columns = String.join(", ", columns());
+        // в наборе партий таблица пишется несколько раз за транзакцию
+        jdbc.getJdbcTemplate().execute("drop table if exists " + stage);
         jdbc.getJdbcTemplate().execute("create temp table " + stage + " on commit drop as select " + columns + " from " + table
                 + " where false");
         jdbc.getJdbcTemplate().execute("alter table " + stage + " add column line integer");
