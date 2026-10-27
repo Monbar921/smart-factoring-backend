@@ -78,7 +78,8 @@ class DemoImportAndLoadTest extends AbstractSmartFactoringBackendTest {
         assertThat(metrics.get("newUpds").asInt()).isEqualTo(37);
         assertThat(metrics.get("payments").asInt()).isEqualTo(13);
         assertThat(metrics.get("buyersWithoutData").asInt()).isEqualTo(1);
-        assertThat(metrics.get("dataDate").asString()).isEqualTo("2026-10-20");
+        assertThat(metrics.get("dataDate").asString()).isEqualTo("2026-10-24");
+        assertThat(metrics.get("snapshotDate").asString()).isEqualTo("2026-10-20");
 
         // К-17: УПД покупателя вне реестра загружен без ссылки на покупателя
         assertThat(jdbcTemplate.queryForObject("select buyer_id from upd where number = 'U-1301'", Long.class)).isNull();
