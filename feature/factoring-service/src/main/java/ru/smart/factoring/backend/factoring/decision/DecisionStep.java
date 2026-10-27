@@ -11,10 +11,14 @@ import ru.smart.factoring.backend.factoring.load.RunScope;
 import ru.smart.factoring.backend.factoring.model.ClientInfo;
 import ru.smart.factoring.backend.factoring.model.UpdState;
 import ru.smart.factoring.backend.factoring.run.RunContext;
+import ru.smart.factoring.backend.factoring.run.RunLog;
 import ru.smart.factoring.backend.factoring.run.RunStep;
 import ru.smart.factoring.backend.factoring.scoring.ScoringResult;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +44,7 @@ public class DecisionStep implements RunStep {
     private final Explainer explainer;
     private final TransactionTemplate transactionTemplate;
     private final ThreadPoolTaskExecutor llmTaskExecutor;
+    private final RunLog runLog;
 
     @Override
     public int stepNo() {
@@ -68,15 +73,48 @@ public class DecisionStep implements RunStep {
         final List<DecisionEngine.Decision> decisions = DecisionEngine.decide(candidates, limitRemaining(context, scoring),
                 context.getParameters());
 
+        final long started = System.nanoTime();
         final List<OfferPublisher.Offer> offers = explain(decisions.stream().filter(DecisionEngine.Decision::offer).toList());
         context.getModelVersions().put("llm", explainer.provider());
+        final Map<Explainer.Source, Long> textSources = logTexts(context, offers, Duration.ofNanos(System.nanoTime() - started));
 
         final OfferPublisher.Published published = Objects.requireNonNull(transactionTemplate.execute(status -> {
             final OfferPublisher.Published result = publisher.publish(context, offers, states, scope.clientIds());
             repository.saveDecisions(context.getRunId(), decisions, result.newUpdIds());
             return result;
         }));
-        return Result.done(metrics(context, decisions, offers, published));
+        final Map<String, Object> metrics = metrics(context, decisions, offers, published);
+        final Map<String, Long> bySource = new TreeMap<>();
+        textSources.forEach((source, count) -> bySource.put(source.name(), count));
+        metrics.put("textsBySource", bySource);
+        // сбой LLM не блокирует предложение (п. 5.3), но шаг - «с предупреждением», чтобы оператор его увидел
+        return textSources.getOrDefault(Explainer.Source.FAILED, 0L) > 0 ? Result.warning(metrics) : Result.done(metrics);
+    }
+
+    /**
+     * В журнал прогона: итог по текстам карточек и каждая карточка, для которой LLM не ответила (с причиной).
+     */
+    private Map<Explainer.Source, Long> logTexts(final RunContext context, final List<OfferPublisher.Offer> offers, final Duration took) {
+        final Map<Explainer.Source, Long> bySource = offers.stream()
+                .collect(Collectors.groupingBy(offer -> offer.texts().source(), () -> new EnumMap<>(Explainer.Source.class),
+                        Collectors.counting()));
+        if (offers.isEmpty()) {
+            return bySource;
+        }
+        final List<RunLog.Entry> log = new ArrayList<>();
+        final long failed = bySource.getOrDefault(Explainer.Source.FAILED, 0L);
+        log.add(RunLog.Entry.of(context.getRunId(), failed > 0 ? RunLog.Level.WARN : RunLog.Level.INFO, STEP_NO, "LLM_TEXTS",
+                "Тексты карточек (%s): %d, от LLM %d, из кеша %d, шаблоном %d, без черновика из-за сбоя LLM %d; %d мс".formatted(
+                        explainer.provider(), offers.size(), bySource.getOrDefault(Explainer.Source.LLM, 0L),
+                        bySource.getOrDefault(Explainer.Source.CACHE, 0L), bySource.getOrDefault(Explainer.Source.TEMPLATE, 0L), failed,
+                        took.toMillis())));
+        offers.stream().filter(offer -> offer.texts().source() == Explainer.Source.FAILED).forEach(offer -> log.add(RunLog.Entry.of(
+                        context.getRunId(), RunLog.Level.WARN, STEP_NO, "LLM_ERROR",
+                        "Карточка УПД " + offer.decision().state().upd().number() + " без черновика: " + offer.texts().error())
+                .client(offer.decision().state().upd().clientId())
+                .upd(offer.decision().state().upd().id())));
+        runLog.write(log);
+        return bySource;
     }
 
     /**

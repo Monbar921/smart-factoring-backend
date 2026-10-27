@@ -24,6 +24,14 @@ class LlmEndpointTest extends AbstractSmartFactoringBackendTest {
     }
 
     @Test
+    void modelsUnavailableInStubMode() {
+        final Api.Response response = Api.get("/llm/models");
+
+        assertThat(response.status()).isEqualTo(503);
+        assertThat(response.body().get("code").asString()).isEqualTo("LLM_DISABLED");
+    }
+
+    @Test
     void rejectsInvalidRequest() {
         assertThat(LlmApi.chat(PORT, Map.of("messages", List.of())).status()).isEqualTo(400);
         assertThat(LlmApi.chat(PORT, Map.of("messages", List.of(Map.of("role", "tool", "content", "x")))).status()).isEqualTo(400);

@@ -1,9 +1,9 @@
 # SMF-33. Сквозная проверка стенда test
 
 Стенд: UI — http://188.127.254.192:8070, Swagger — http://188.127.254.192:8090/swagger-ui.html.
-Наборы для импорта (собраны локально, в git не входят): `target/demo-upload/fixture-v1.zip` (контрольные случаи
-К-1…К-18, 6 клиентов) и `target/demo-upload/demo-volume.zip` (объём демо: 100 клиентов, 300 покупателей, 1 500 открытых УПД).
-Пересобрать: см. «Наборы» в конце.
+Наборы для импорта — `demo-upload/fixture-v1.zip` (контрольные случаи К-1…К-18, 6 клиентов) и
+`demo-upload/demo-volume.zip` (объём демо: 100 клиентов, 300 покупателей, 1 500 открытых УПД) в корне репозитория,
+в git не входят. Собрать: `python -I docs/claude/tools/build_demo_zips.py`.
 
 Что проверяется на стенде, а что — автотестами:
 
@@ -105,8 +105,8 @@ Swagger → Authorize → `POST /api/backend/llm/chat/completions`:
 ## Наборы
 
 ```bash
-python -I docs/claude/tools/gen_perf_dataset.py target/demo-upload/demo-volume
+python -I docs/claude/tools/build_demo_zips.py
 ```
 
-ZIP — папка выгрузки с `manifest.json` внутри (или файлы в корне архива); фикстура —
-`app/src/test/resources/demo/fixture-v1` (CSV + `manifest.json` + `events.csv`).
+Скрипт кладёт оба ZIP в `demo-upload/`. Внутри архива — папка выгрузки с `manifest.json`; фикстура —
+`app/src/test/resources/demo/fixture-v1` (CSV + `manifest.json` + `events.csv`), объём демо — `gen_perf_dataset.py`.

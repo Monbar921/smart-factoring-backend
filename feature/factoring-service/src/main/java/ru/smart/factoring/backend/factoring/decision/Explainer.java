@@ -16,6 +16,25 @@ public interface Explainer {
      */
     String provider();
 
-    record Texts(String reasonsText, String messageDraft) {
+    /**
+     * @param source откуда тексты
+     * @param error  причина сбоя LLM для source = FAILED (в журнал прогона)
+     */
+    record Texts(String reasonsText, String messageDraft, Source source, String error) {
+
+        public static Texts of(final String reasonsText, final String messageDraft, final Source source) {
+            return new Texts(reasonsText, messageDraft, source, null);
+        }
+    }
+
+    enum Source {
+        /** ответ LLM в этом прогоне */
+        LLM,
+        /** ответ LLM из кеша прошлых прогонов (Р-7) */
+        CACHE,
+        /** шаблон без LLM: LLM_MODE = stub или off */
+        TEMPLATE,
+        /** LLM не ответила: причины шаблоном, без черновика */
+        FAILED
     }
 }

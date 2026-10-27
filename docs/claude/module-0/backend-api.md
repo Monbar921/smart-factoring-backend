@@ -217,6 +217,11 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
 Сервис моделей вызывает backend напрямую по сети стенда: `http://backend:8080/internal/rest/llm`; через gateway —
 `/api/backend/llm/**` с токеном Keycloak. smart-factoring-ml к GigaChat напрямую не ходит.
 
+### `GET /internal/rest/llm/models`
+
+`{ "configured": "GigaChat", "available": ["GigaChat-2", "GigaChat-2-Pro", …] }` — модель из `GIGACHAT_MODEL`
+и модели, доступные ключу (GigaChat `GET /models`). Нужна, если GigaChat отвечает «No such model».
+
 ### `POST /internal/rest/llm/chat/completions`
 
 ```json

@@ -18,6 +18,11 @@ public interface LlmClient {
     Completion complete(CompletionRequest request);
 
     /**
+     * Модели, доступные ключу (GigaChat GET /models): значения для GIGACHAT_MODEL.
+     */
+    List<String> models();
+
+    /**
      * @param role system, user или assistant
      */
     record Message(String role, String content) {

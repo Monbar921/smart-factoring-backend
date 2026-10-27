@@ -19,10 +19,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
+import java.util.function.Supplier;
 
 /**
  * Клиент GigaChat API (Р-12, Р-48).
@@ -85,6 +89,29 @@ public class GigaChatClient implements LlmClient {
 
     @Override
     public Completion complete(final CompletionRequest request) {
+        final String body = body(request);
+        return guarded(() -> {
+            final Reply reply = withRetries(() -> send(client.post()
+                    .uri(properties.apiUrl() + "/chat/completions")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)));
+            if (reply.status() == HttpStatus.NOT_FOUND.value() && reply.body().toLowerCase(Locale.ROOT).contains("model")) {
+                throw error("модель '" + model + "' не найдена в " + properties.apiUrl() + ", доступны: " + availableModels()
+                        + " - задайте одну из них в GIGACHAT_MODEL");
+            }
+            return parse(checked(reply, "chat/completions"));
+        });
+    }
+
+    @Override
+    public List<String> models() {
+        return guarded(() -> modelIds(checked(withRetries(() -> send(client.get().uri(properties.apiUrl() + "/models"))), "models")));
+    }
+
+    /**
+     * Не больше parallelism запросов одновременно (лимит тарифа общий для прогона и сервиса моделей).
+     */
+    private <T> T guarded(final Supplier<T> call) {
         try {
             permits.acquire();
         } catch (InterruptedException e) {
@@ -92,20 +119,31 @@ public class GigaChatClient implements LlmClient {
             throw unavailable("прервано ожидание очереди запросов");
         }
         try {
-            return withRetries(body(request));
+            return call.get();
         } finally {
             permits.release();
         }
     }
 
-    private Completion withRetries(final String body) {
+    /**
+     * Ответ, после которого повторять бессмысленно: 200 или 4xx кроме 401/429. 401 - новый токен и повтор.
+     */
+    private Reply withRetries(final Supplier<Reply> call) {
         String failure = null;
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             if (attempt > 1) {
                 pause(attempt);
             }
             try {
-                return parse(send(body));
+                final Reply reply = call.get();
+                if (reply.status() == HttpStatus.UNAUTHORIZED.value()) {
+                    invalidateToken();
+                    throw new RetryableException("токен не принят (401), запрошу новый");
+                }
+                if (reply.status() == HttpStatus.TOO_MANY_REQUESTS.value() || reply.status() >= HttpStatus.INTERNAL_SERVER_ERROR.value()) {
+                    throw new RetryableException(reply.status() + ": " + abbreviate(reply.body()));
+                }
+                return reply;
             } catch (RetryableException e) {
                 failure = e.getMessage();
                 log.warn("GigaChat, попытка {} из {}: {}", attempt, MAX_ATTEMPTS, failure);
@@ -114,18 +152,35 @@ public class GigaChatClient implements LlmClient {
         throw unavailable(failure);
     }
 
-    private String send(final String body) {
-        final Reply reply = exchange(client.post()
-                .uri(properties.apiUrl() + "/chat/completions")
+    private Reply send(final RestClient.RequestHeadersSpec<?> request) {
+        return exchange(request
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token())
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON)
-                .body(body));
-        if (reply.status() == HttpStatus.UNAUTHORIZED.value()) {
-            invalidateToken();
-            throw new RetryableException("токен не принят (401), запрошу новый");
+                .accept(MediaType.APPLICATION_JSON));
+    }
+
+    /**
+     * Для сообщения об ошибке: без повторов и без очереди - вызывается внутри уже занятого слота.
+     */
+    @SuppressWarnings("checkstyle:IllegalCatch")
+    private String availableModels() {
+        try {
+            final Reply reply = send(client.get().uri(properties.apiUrl() + "/models"));
+            return reply.status() == HttpStatus.OK.value() ? String.join(", ", modelIds(reply.body()))
+                    : "не удалось получить (" + reply.status() + ")";
+        } catch (RuntimeException e) {
+            return "не удалось получить (" + e.getMessage() + ")";
         }
-        return checked(reply, "chat/completions");
+    }
+
+    private List<String> modelIds(final String body) {
+        final List<String> ids = new ArrayList<>();
+        json(body).path("data").forEach(item -> {
+            final String id = item.path("id").asString(null);
+            if (id != null) {
+                ids.add(id);
+            }
+        });
+        return ids;
     }
 
     private synchronized String token() {

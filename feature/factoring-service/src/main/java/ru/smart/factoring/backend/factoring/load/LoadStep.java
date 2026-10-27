@@ -121,7 +121,10 @@ public class LoadStep implements RunStep {
         metrics.put("buyers", buyers.get("buyers"));
         metrics.put("buyersWithoutData", buyers.get("without_data"));
         metrics.put("updsWithoutBuyerData", buyers.get("upds_without_data"));
-        metrics.put("dataDate", snapshotDate != null ? snapshotDate.toString() : null);
+        // ЭП-3: дата данных прогона (выгрузки генератора) и, отдельно, дата снимка внешних данных ЕГРЮЛ/ЕФРСБ
+        metrics.put("dataDate", Objects.toString(jdbc.queryForObject("select data_date from run where id = :runId",
+                Map.of("runId", context.getRunId()), LocalDate.class), null));
+        metrics.put("snapshotDate", snapshotDate != null ? snapshotDate.toString() : null);
         return Result.done(metrics);
     }
 

@@ -2,12 +2,14 @@ package ru.smart.factoring.backend.ui.service.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.smart.factoring.backend.api.llm.LlmChatRequest;
 import ru.smart.factoring.backend.api.llm.LlmChatResponse;
+import ru.smart.factoring.backend.api.llm.LlmModelsDto;
 import ru.smart.factoring.backend.factoring.llm.LlmClient;
 
 /**
@@ -22,6 +24,14 @@ import ru.smart.factoring.backend.factoring.llm.LlmClient;
 @RequiredArgsConstructor
 public class LlmController {
     private final LlmClient llm;
+
+    /**
+     * Какая модель задана (GIGACHAT_MODEL) и какие доступны ключу - если GigaChat отвечает «No such model».
+     */
+    @GetMapping("/models")
+    public LlmModelsDto models() {
+        return new LlmModelsDto(llm.model(), llm.models());
+    }
 
     @PostMapping("/chat/completions")
     public LlmChatResponse complete(@Valid @RequestBody final LlmChatRequest request) {
