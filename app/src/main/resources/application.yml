@@ -58,9 +58,9 @@ smart-factoring:
       scope: ${GIGACHAT_SCOPE:GIGACHAT_API_PERS}
       auth-url: ${GIGACHAT_AUTH_URL:https://ngw.devices.sberbank.ru:9443/api/v2/oauth}
       api-url: ${GIGACHAT_API_URL:https://api.giga.chat/v1}
-      # поле model запроса chat/completions: GigaChat (Lite), GigaChat-2-Pro, GigaChat-2-Max, GigaChat-3-Ultra;
+      # поле model запроса chat/completions: GigaChat-2 (базовая), GigaChat-2-Pro, GigaChat-2-Max, GigaChat-3-Lightning, GigaChat-3-Pro, GigaChat-3-Ultra;
       # доступные тарифу - GET /models
-      model: ${GIGACHAT_MODEL:GigaChat}
+      model: ${GIGACHAT_MODEL:GigaChat-2}
       timeout: ${GIGACHAT_TIMEOUT:60s}
       # PEM корневого сертификата НУЦ Минцифры (Russian Trusted Root CA): без него TLS к GigaChat не пройдёт
       ca-cert: ${GIGACHAT_CA_CERT:}

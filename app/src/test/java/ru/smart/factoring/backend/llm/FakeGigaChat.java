@@ -32,7 +32,7 @@ final class FakeGigaChat {
             throw new UncheckedIOException(e);
         }
         server.createContext("/api/v1/models", exchange -> send(exchange, 200,
-                "{\"object\":\"list\",\"data\":[{\"id\":\"GigaChat\"},{\"id\":\"GigaChat-2-Pro\"}]}"));
+                "{\"object\":\"list\",\"data\":[{\"id\":\"GigaChat-2\"},{\"id\":\"GigaChat-2-Pro\"}]}"));
         server.createContext("/api/v2/oauth", exchange -> send(exchange, 200,
                 "{\"access_token\":\"fake-token\",\"expires_at\":" + Instant.now().plus(Duration.ofMinutes(30)).toEpochMilli() + "}"));
         server.createContext("/api/v1/chat/completions", exchange -> {

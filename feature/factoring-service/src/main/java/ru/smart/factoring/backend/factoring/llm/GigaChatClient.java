@@ -45,7 +45,8 @@ public class GigaChatClient implements LlmClient {
     private static final Duration DEFAULT_BACKOFF = Duration.ofSeconds(1);
     private static final int MAX_ATTEMPTS = 3;
     private static final int MAX_ERROR_BODY = 300;
-    private static final String DEFAULT_MODEL = "GigaChat";
+    /** базовая модель на api.giga.chat; прежнего имени GigaChat там нет (No such model) */
+    private static final String DEFAULT_MODEL = "GigaChat-2";
     private static final String DEFAULT_SCOPE = "GIGACHAT_API_PERS";
 
     private final LlmProperties.GigaChat properties;

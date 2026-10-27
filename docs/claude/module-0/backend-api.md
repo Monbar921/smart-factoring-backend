@@ -102,8 +102,9 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
 
 ### `GET /runs/{id}/upds` — детализация УПД (ЭП-5)
 
-Фильтры: `clientId`, `buyerId`, `category`, `decision` (`OFFER`/`NO_OFFER`), `reason`, `stage` (код ступени воронки,
-на которой УПД отсеян), `riskLevel`, `paymentStatus`; пагинация.
+Фильтры: `clientId`, `buyerId`, `category`, `decision` (`OFFER`/`NO_OFFER`), `reason`, `stage` (код ступени воронки:
+без `reason` — УПД, прошедшие ступень, их столько же, сколько на полосе воронки; с `reason` — отсеянные на этой ступени
+по этой причине), `riskLevel`, `paymentStatus`; пагинация.
 
 ```json
 { "items": [ {

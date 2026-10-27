@@ -63,7 +63,7 @@ class GigaChatModeTest extends AbstractSmartFactoringBackendTest {
         final JsonNode run = Fixture.run(Map.of());
 
         assertThat(run.get("status").asString()).isEqualTo("DONE");
-        assertThat(run.get("modelVersions").get("llm").asString()).isEqualTo("gigachat:GigaChat:v1");
+        assertThat(run.get("modelVersions").get("llm").asString()).isEqualTo("gigachat:GigaChat-2:v1");
         final int offers = Fixture.metrics(run, 5).get("offers").asInt();
         assertThat(offers).isEqualTo(12);
         assertThat(jdbcTemplate.queryForList("select distinct reasons_text from offer", String.class)).containsExactly(FakeGigaChat.REASONS);
@@ -97,8 +97,8 @@ class GigaChatModeTest extends AbstractSmartFactoringBackendTest {
         assertThat(log(run, "LLM_TEXTS")).singleElement().asString().contains("без черновика из-за сбоя LLM 12");
         assertThat(log(run, "LLM_ERROR")).hasSize(12).allSatisfy(message -> assertThat(message)
                 .contains("без черновика")
-                .contains("модель 'GigaChat' не найдена")
-                .contains("доступны: GigaChat, GigaChat-2-Pro"));
+                .contains("модель 'GigaChat-2' не найдена")
+                .contains("доступны: GigaChat-2, GigaChat-2-Pro"));
     }
 
     @Test
@@ -106,8 +106,8 @@ class GigaChatModeTest extends AbstractSmartFactoringBackendTest {
         final Api.Response response = Api.get("/llm/models");
 
         assertThat(response.status()).isEqualTo(200);
-        assertThat(response.body().get("configured").asString()).isEqualTo("GigaChat");
-        assertThat(response.body().get("available").toString()).isEqualTo("[\"GigaChat\",\"GigaChat-2-Pro\"]");
+        assertThat(response.body().get("configured").asString()).isEqualTo("GigaChat-2");
+        assertThat(response.body().get("available").toString()).isEqualTo("[\"GigaChat-2\",\"GigaChat-2-Pro\"]");
     }
 
     /**
@@ -139,7 +139,7 @@ class GigaChatModeTest extends AbstractSmartFactoringBackendTest {
                 .contains("{\"role\":\"system\",\"content\":\"Ты аналитик\"}")
                 .contains("\"temperature\":0.1")
                 .contains("\"max_tokens\":50")
-                .contains("\"model\":\"GigaChat\""));
+                .contains("\"model\":\"GigaChat-2\""));
     }
 
     @Test

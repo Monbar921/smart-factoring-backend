@@ -20,7 +20,7 @@
 | `GIGACHAT_AUTH_KEY` | пусто | ключ авторизации GigaChat API (секрет) |
 | `GIGACHAT_SCOPE` | `GIGACHAT_API_PERS` | тариф |
 | `GIGACHAT_CA_CERT` | пусто | путь к PEM корневого сертификата НУЦ Минцифры внутри контейнера (Р-49) |
-| `GIGACHAT_MODEL` | `GigaChat` | поле `model` запроса: `GigaChat` (Lite), `GigaChat-2-Pro`, `GigaChat-2-Max`, `GigaChat-3-Ultra` — доступные тарифу показывает `GET /models` |
+| `GIGACHAT_MODEL` | `GigaChat-2` | поле `model` запроса: GigaChat-2 (базовая), GigaChat-2-Pro, GigaChat-2-Max, GigaChat-3-Lightning, GigaChat-3-Pro, GigaChat-3-Ultra — доступные ключу показывает `GET /internal/rest/llm/models` |
 | `GIGACHAT_API_URL` | `https://api.giga.chat/v1` | адрес API |
 | `GIGACHAT_TIMEOUT` | `60s` | таймаут одного запроса |
 

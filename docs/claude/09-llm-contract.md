@@ -19,7 +19,7 @@
 
 ```json
 {
-  "model": "GigaChat",
+  "model": "GigaChat-2",
   "messages": [
     { "role": "system", "content": "<текст reasons-prompt.txt или draft-prompt.txt>" },
     { "role": "user", "content": "<факты предложения, формат ниже>" }
