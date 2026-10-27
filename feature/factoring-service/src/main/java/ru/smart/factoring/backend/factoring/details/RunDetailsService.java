@@ -78,6 +78,10 @@ public class RunDetailsService {
         return stages;
     }
 
+    /**
+     * stage без reason - УПД, прошедшие ступень воронки (их число - на полосе ступени, ЭП-4);
+     * stage с reason - отсеянные на этой ступени по этой причине (причина справа от полосы).
+     */
     @SuppressWarnings("checkstyle:ParameterNumber")
     public PageDto<RunUpdDto> upds(final long runId, final Long clientId, final Long buyerId, final Integer category,
                                    final String decision, final String reason, final String stage, final String riskLevel,
@@ -87,7 +91,7 @@ public class RunDetailsService {
                 && (category == null || category.equals(row.category()))
                 && (decision == null || decision.equals(row.decision()))
                 && (reason == null || reason.equals(row.reason()))
-                && (stage == null || stage.equals(row.stage()))
+                && (stage == null || (reason != null ? stage.equals(row.stage()) : passed(row, stage)))
                 && (riskLevel == null || row.riskLevel() != null && riskLevel.equals(row.riskLevel().name()))
                 && (paymentStatus == null || paymentStatus.equals(row.paymentStatus()));
         final List<RunUpdDto> filtered = rows(runId, null).stream().filter(filter).toList();
@@ -95,6 +99,19 @@ public class RunDetailsService {
         final int from = Math.min(Math.max(page, 0) * pageSize, filtered.size());
         return new PageDto<>(filtered.subList(from, Math.min(from + pageSize, filtered.size())), Math.max(page, 0), pageSize,
                 filtered.size());
+    }
+
+    /**
+     * Открытый УПД прошёл ступень: дошёл до очереди или отсеян на одной из следующих ступеней (как в {@link #funnel}).
+     */
+    private static boolean passed(final RunUpdDto row, final String stage) {
+        if (row.stage() == null) {
+            return false;
+        }
+        if (row.reason() == null) {
+            return true;
+        }
+        return FunnelStage.valueOf(row.stage()).ordinal() > FunnelStage.valueOf(stage).ordinal();
     }
 
     @SuppressWarnings("checkstyle:MagicNumber")

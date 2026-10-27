@@ -105,9 +105,17 @@ class CrmAndDetailsTest extends AbstractSmartFactoringBackendTest {
         assertThat(queued.get("count").asInt()).isEqualTo(12);
         assertThat(queued.get("dropped").get(0).get("reason").asString()).isEqualTo("LIMIT_EXHAUSTED");
 
-        final JsonNode dropped = Api.get("/runs/" + runId + "/upds?stage=TOP_N").body();
+        // по причине справа от ступени - отсеянные на ней
+        final JsonNode dropped = Api.get("/runs/" + runId + "/upds?stage=TOP_N&reason=NOT_IN_TOP_N").body();
         assertThat(dropped.get("total").asInt()).isEqualTo(1);
         assertThat(dropped.get("items").get(0).get("number").asString()).isEqualTo("U-2101");
+        // по ступени - прошедшие её: столько же, сколько на полосе воронки
+        for (final JsonNode stage : funnel) {
+            if (!"OPEN".equals(stage.get("code").asString())) {
+                assertThat(Api.get("/runs/" + runId + "/upds?stage=" + stage.get("code").asString()).body().get("total").asInt())
+                        .as(stage.get("code").asString()).isEqualTo(stage.get("count").asInt());
+            }
+        }
 
         final long updId = jdbcTemplate.queryForObject("select id from upd where number = 'U-1102'", Long.class);
         final JsonNode trace = Api.get("/runs/" + runId + "/upds/" + updId + "/trace").body();
