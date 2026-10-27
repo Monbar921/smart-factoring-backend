@@ -1,0 +1,6 @@
+client_id,client_name,client_inn,industry,region,revenue_mln,abs_liquidity,receivable_days,core,manager_id,edo_consent
+CL-0005,Клиент 0005,0024194796,строительство,novgorod,891.8,0.078,128.4,1,MG-003,1
+CL-0007,Клиент 0007,0010942579,строительство,moscow city,1759.8,0.070,74.7,0,MG-003,1
+CL-0018,Клиент 0018,0000486334,торговля,moscow city,1176.2,0.560,75.9,0,MG-005,1
+CL-0036,Клиент 0036,0073363990,производство,moscow city,924.0,0.749,31.3,0,MG-009,1
+CL-0041,Клиент 0041,0000076480,торговля,sankt-petersburg,916.9,0.050,86.6,0,MG-002,1

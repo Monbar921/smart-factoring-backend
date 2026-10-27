@@ -197,6 +197,18 @@ public class LoadStep implements RunStep {
                         bankruptcy_case_number = excluded.bankruptcy_case_number, bankruptcy_stage = excluded.bankruptcy_stage,
                         bankruptcy_start_date = excluded.bankruptcy_start_date, bankruptcy_end_date = excluded.bankruptcy_end_date,
                         data_date = excluded.data_date, loaded_at = now()""", none);
+        // готовый PD партии ML-команды (Р-54) - результат той же модели на ту же дату данных: блок 4 берёт его из кэша,
+        // если версия модели сервиса совпадает с версией партии, иначе считает PD сам
+        jdbc.update("""
+                insert into buyer_pd_cache (buyer_id, data_date, model_version, pd, pd_source, low_data, reasons)
+                select b.id, e.data_date, db.pd_model_version, db.pd, 'MODEL', false, '[]'::jsonb
+                from demo_buyer db
+                join buyer b on b.inn = db.inn
+                join buyer_external_data e on e.buyer_id = b.id
+                where db.pd is not null and db.pd_model_version is not null
+                on conflict (buyer_id, data_date, model_version) do update
+                    set pd = excluded.pd, pd_source = excluded.pd_source, low_data = excluded.low_data, reasons = excluded.reasons
+                    where buyer_pd_cache.pd is distinct from excluded.pd""", none);
     }
 
     /**
