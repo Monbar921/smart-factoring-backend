@@ -694,4 +694,46 @@
         </sql>
     </changeSet>
 
+    <!--
+        Р-56: ручная загрузка вместо «демо-данных». Таблицы источников demo_* -> manual_upload_*, факт загрузки
+        demo_import_batch -> manual_upload_batch, имитации получателей demo_factoring_package / demo_risk_signal -> imitation_*.
+        Вместе с таблицами - их ограничения, индексы и последовательности identity. Данные сохраняются.
+    -->
+    <changeSet id="SMF-33-manual-upload-rename" author="Monbar921">
+        <sql splitStatements="false">
+            do $$
+            declare
+                r record;
+            begin
+                -- ограничения (индекс ограничения переименовывается вместе с ним)
+                for r in select c.conname as name, t.relname as tbl
+                         from pg_constraint c
+                         join pg_class t on t.oid = c.conrelid
+                         join pg_namespace n on n.oid = t.relnamespace
+                         where n.nspname = '${schema}' and c.conname like 'demo\_%'
+                loop
+                    execute format('alter table %I.%I rename constraint %I to %I', '${schema}', r.tbl, r.name,
+                                   case when r.name like 'demo\_import\_batch%' then 'manual_upload_batch' || substr(r.name, 18)
+                                        when r.name like 'demo\_factoring\_package%' or r.name like 'demo\_risk\_signal%'
+                                            then 'imitation_' || substr(r.name, 6)
+                                        else 'manual_upload_' || substr(r.name, 6) end);
+                end loop;
+                -- остальные индексы, последовательности identity и сами таблицы
+                for r in select cl.relname as name, cl.relkind as kind
+                         from pg_class cl
+                         join pg_namespace n on n.oid = cl.relnamespace
+                         where n.nspname = '${schema}' and cl.relname like 'demo\_%' and cl.relkind in ('i', 'S', 'r')
+                loop
+                    execute format('alter %s %I.%I rename to %I',
+                                   case r.kind when 'i' then 'index' when 'S' then 'sequence' else 'table' end, '${schema}', r.name,
+                                   case when r.name like 'demo\_import\_batch%' then 'manual_upload_batch' || substr(r.name, 18)
+                                        when r.name like 'demo\_factoring\_package%' or r.name like 'demo\_risk\_signal%'
+                                            then 'imitation_' || substr(r.name, 6)
+                                        else 'manual_upload_' || substr(r.name, 6) end);
+                end loop;
+            end $$;
+            comment on table "${schema}".manual_upload_batch is 'Факт ручной загрузки: выгрузка генератора, events.csv или партии ML-команды';
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

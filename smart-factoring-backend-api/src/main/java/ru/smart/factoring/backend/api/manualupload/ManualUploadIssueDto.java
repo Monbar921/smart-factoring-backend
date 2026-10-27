@@ -1,4 +1,4 @@
-package ru.smart.factoring.backend.api.demo;
+package ru.smart.factoring.backend.api.manualupload;
 
 /**
  * Замечание импорта по строке.
@@ -10,5 +10,5 @@ package ru.smart.factoring.backend.api.demo;
  * @param key     ключ записи, например номер УПД или source_id платежа
  * @param message что не так, по-русски
  */
-public record DemoImportIssueDto(String level, String file, Integer line, String key, String message) {
+public record ManualUploadIssueDto(String level, String file, Integer line, String key, String message) {
 }

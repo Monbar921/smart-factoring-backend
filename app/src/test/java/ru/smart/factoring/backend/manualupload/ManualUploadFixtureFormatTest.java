@@ -1,4 +1,4 @@
-package ru.smart.factoring.backend.demo;
+package ru.smart.factoring.backend.manualupload;
 
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -23,12 +23,12 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Фикстура demo/fixture-v1 соответствует формату docs/claude/module-0/demo-dataset-format.md:
+ * Фикстура manual-upload/fixture-v1 соответствует формату docs/claude/module-0/manual-upload-format.md:
  * заголовки, ключи, ссылки, дата данных и покрытие контрольных случаев (CASES.md).
  */
-class DemoFixtureFormatTest {
+class ManualUploadFixtureFormatTest {
 
-    private static final String DIR = "/demo/fixture-v1/";
+    private static final String DIR = "/manual-upload/fixture-v1/";
 
     @Test
     void filesHaveRequiredColumns() {

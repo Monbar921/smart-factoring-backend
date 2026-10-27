@@ -69,7 +69,7 @@ public class RunService {
     @SuppressWarnings("checkstyle:IllegalCatch")
     public long start(final StartRunRequest request, final InitiatorType initiatorType, final String initiator) {
         final LocalDate dataDate = sourceCatalog.dataDate()
-                .orElseThrow(() -> ApiException.validation("Нет данных в источниках: сначала загрузите демо-набор"));
+                .orElseThrow(() -> ApiException.validation("Нет данных в источниках: сначала загрузите данные (ручная загрузка)"));
         final LocalDate calcDate = request.calcDate() != null ? request.calcDate() : dataDate;
         final List<String> clientInns = normalizeClients(request.clientInns());
         final RunParameters parameters = parameterService.load();

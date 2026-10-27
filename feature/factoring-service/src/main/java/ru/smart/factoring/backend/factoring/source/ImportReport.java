@@ -1,7 +1,7 @@
 package ru.smart.factoring.backend.factoring.source;
 
-import ru.smart.factoring.backend.api.demo.DemoImportIssueDto;
-import ru.smart.factoring.backend.api.demo.DemoTableStatsDto;
+import ru.smart.factoring.backend.api.manualupload.ManualUploadIssueDto;
+import ru.smart.factoring.backend.api.manualupload.ManualUploadTableStatsDto;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -14,7 +14,7 @@ import java.util.TreeMap;
  * и замечания по строкам: конфликт (строка пропущена), изменение, возможный дубль, предупреждение.
  */
 final class ImportReport {
-    /** в ответе и в demo_import_batch - не больше стольких замечаний, счётчики по уровням - полные */
+    /** в ответе и в manual_upload_batch - не больше стольких замечаний, счётчики по уровням - полные */
     private static final int MAX_ISSUES = 500;
 
     enum Level {
@@ -28,18 +28,18 @@ final class ImportReport {
         WARNING
     }
 
-    private final Map<String, DemoTableStatsDto> tables = new LinkedHashMap<>();
-    private final List<DemoImportIssueDto> issues = new ArrayList<>();
+    private final Map<String, ManualUploadTableStatsDto> tables = new LinkedHashMap<>();
+    private final List<ManualUploadIssueDto> issues = new ArrayList<>();
     private final Map<String, Integer> issueCounts = new TreeMap<>();
 
-    void table(final String name, final DemoTableStatsDto stats) {
+    void table(final String name, final ManualUploadTableStatsDto stats) {
         tables.put(name, stats);
     }
 
     void issue(final Level level, final String file, final Integer line, final String key, final String message) {
         issueCounts.merge(level.name(), 1, Integer::sum);
         if (issues.size() < MAX_ISSUES) {
-            issues.add(new DemoImportIssueDto(level.name(), file, line, key, message));
+            issues.add(new ManualUploadIssueDto(level.name(), file, line, key, message));
         }
     }
 
@@ -47,12 +47,12 @@ final class ImportReport {
      * Отчёт партии набора - в общий: строки таблиц складываются, файлы замечаний - с папкой партии.
      */
     void add(final ImportReport part, final String folder) {
-        part.tables.forEach((name, stats) -> tables.merge(name, stats, (a, b) -> new DemoTableStatsDto(a.rows() + b.rows(),
+        part.tables.forEach((name, stats) -> tables.merge(name, stats, (a, b) -> new ManualUploadTableStatsDto(a.rows() + b.rows(),
                 a.inserted() + b.inserted(), a.updated() + b.updated(), a.unchanged() + b.unchanged(), a.conflicts() + b.conflicts())));
         part.issueCounts.forEach((level, count) -> issueCounts.merge(level, count, Integer::sum));
-        for (final DemoImportIssueDto issue : part.issues) {
+        for (final ManualUploadIssueDto issue : part.issues) {
             if (issues.size() < MAX_ISSUES) {
-                issues.add(new DemoImportIssueDto(issue.level(), folder + issue.file(), issue.line(), issue.key(), issue.message()));
+                issues.add(new ManualUploadIssueDto(issue.level(), folder + issue.file(), issue.line(), issue.key(), issue.message()));
             }
         }
     }
@@ -61,11 +61,11 @@ final class ImportReport {
         return issueCounts.getOrDefault(level.name(), 0);
     }
 
-    Map<String, DemoTableStatsDto> tables() {
+    Map<String, ManualUploadTableStatsDto> tables() {
         return tables;
     }
 
-    List<DemoImportIssueDto> issues() {
+    List<ManualUploadIssueDto> issues() {
         return issues;
     }
 

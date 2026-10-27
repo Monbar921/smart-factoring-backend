@@ -30,9 +30,9 @@ spring:
     default-schema: smart_factoring_test
 
 smart-factoring:
-  demo:
+  manual-upload:
     # тесты запускаются из каталога модуля app
-    import-dir: src/test/resources/demo
+    import-dir: src/test/resources/manual-upload
   ml:
     mode: stub
-    stub-scores-dir: src/test/resources/demo/fixture-v1
+    stub-scores-dir: src/test/resources/manual-upload/fixture-v1

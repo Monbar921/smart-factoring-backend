@@ -2,7 +2,7 @@
 
 > **Внесено в smart-factoring-deploy** (ветка `feature/CI_CD`): сервис `ml` (образ, healthcheck, лимиты, `ML_TAG`
 > в deploy workflow), backend стенда с `ML_MODE=http` по умолчанию, GigaChat (раздел ниже). Не внесено: каталог
-> демо-данных `DEMO_IMPORT_DIR` (импорт пока через загрузку ZIP с UI). Ниже — исходные заметки.
+> данных ручной загрузки `MANUAL_UPLOAD_DIR` (импорт пока через загрузку ZIP с UI). Ниже — исходные заметки.
 
 В репозиторий деплоя изменения не вносились: в нём нет ветки `feature/SMF-33`, а у `smart-factoring-ml` ещё нет CI,
 который публикует образ в ghcr. Ниже — готовый фрагмент.
@@ -11,7 +11,7 @@
 
 | Переменная | По умолчанию | Смысл |
 |---|---|---|
-| `DEMO_IMPORT_DIR` | `/data/demo` | каталог с выгрузками генератора для `POST /demo/import {path}` (смонтировать volume) |
+| `MANUAL_UPLOAD_DIR` | `/data/manual-upload` | каталог с выгрузками генератора для `POST /manual-upload {path}` (смонтировать volume) |
 | `ML_MODE` | `stub` | `stub` — встроенная заглушка моделей, `http` — сервис smart-factoring-ml |
 | `ML_BASE_URL` | `http://smart-factoring-ml:8000` | адрес сервиса моделей |
 | `ML_STUB_SCORES_DIR` | пусто | для `stub`: каталог со `stub_*_scores.csv` |
@@ -34,14 +34,14 @@
   backend:
     # ... как сейчас, плюс:
     environment:
-      DEMO_IMPORT_DIR: /data/demo
+      MANUAL_UPLOAD_DIR: /data/manual-upload
       ML_MODE: ${ML_MODE:-stub}
       ML_BASE_URL: http://ml:8000
       LLM_MODE: ${LLM_MODE:-stub}
       GIGACHAT_AUTH_KEY: ${GIGACHAT_AUTH_KEY:-}
       GIGACHAT_CA_CERT: /certs/russian_trusted_root_ca.pem
     volumes:
-      - ./demo:/data/demo:ro
+      - ./manual-upload:/data/manual-upload:ro
       - ./certs:/certs:ro
 
   ml:
@@ -82,7 +82,7 @@ kcadm.sh add-roles -r smart-factoring-test --uusername "$KEYCLOAK_TEST_USER" --r
 ```json
 "roles": { "realm": [
   { "name": "user", "description": "Пользователь smart-factoring" },
-  { "name": "operator", "description": "Экран процесса: импорт демо-данных и запуск прогона" },
+  { "name": "operator", "description": "Экран процесса: импорт данных ручной загрузки и запуск прогона" },
   { "name": "manager", "description": "Эмулятор CRM: очередь, карточка клиента, решения по предложениям" }
 ] },
 ```
@@ -94,7 +94,7 @@ kcadm.sh add-roles -r smart-factoring-test --uusername "$KEYCLOAK_TEST_USER" --r
 ## GigaChat
 
 **Внесено в smart-factoring-deploy** (ветка `feature/CI_CD`): `LLM_MODE`, `LLM_PARALLELISM`, `GIGACHAT_MODEL`, `GIGACHAT_SCOPE`, `GIGACHAT_AUTH_KEY`
-и `certs/` → `/certs` (`GIGACHAT_CA_CERT`) в backend; остальное в этом файле (сервис `ml`, демо-данные) — ещё нет.
+и `certs/` → `/certs` (`GIGACHAT_CA_CERT`) в backend; остальное в этом файле (сервис `ml`, данные ручной загрузки) — ещё нет.
 
 1. Ключ авторизации: личный кабинет GigaChat API (developers.sber.ru) → проект → «Получить ключ».
    Это Base64 `client_id:client_secret` — в секрет окружения `GIGACHAT_AUTH_KEY`, в git не класть.

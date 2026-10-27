@@ -22,7 +22,7 @@ public class SourceCatalog {
      */
     public Optional<LocalDate> dataDate() {
         return jdbc.sql("""
-                        select greatest((select max(upd_date) from demo_upd), (select max(payment_date) from demo_payment))""")
+                        select greatest((select max(upd_date) from manual_upload_upd), (select max(payment_date) from manual_upload_payment))""")
                 .query(LocalDate.class)
                 .optional();
     }
@@ -32,7 +32,7 @@ public class SourceCatalog {
      */
     public Optional<LocalDate> snapshotDate() {
         return jdbc.sql("""
-                        select coalesce((select max(snapshot_date) from demo_import_batch), (select max(data_date) from demo_buyer))""")
+                        select coalesce((select max(snapshot_date) from manual_upload_batch), (select max(data_date) from manual_upload_buyer))""")
                 .query(LocalDate.class)
                 .optional();
     }
@@ -42,7 +42,7 @@ public class SourceCatalog {
      */
     public List<ClientRefDto> eligibleClients() {
         return jdbc.sql("""
-                        select inn, name from demo_client
+                        select inn, name from manual_upload_client
                         where edo_consent and not factoring_client
                         order by name""")
                 .query((rs, rowNum) -> new ClientRefDto(null, rs.getString("inn"), rs.getString("name")))

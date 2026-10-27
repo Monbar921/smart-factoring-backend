@@ -13,9 +13,9 @@ public final class TestDatabase {
             "run_log", "notification", "offer", "upd_decision", "upd_score", "buyer_score", "buyer_pd_cache", "upd_state",
             "payment_allocation", "run_step", "payment", "upd", "contract", "buyer_financials", "buyer_external_data",
             "client", "buyer", "manager", "run", "llm_text_cache",
-            "demo_import_batch", "demo_manager", "demo_client", "demo_buyer", "demo_buyer_financials", "demo_contract",
-            "demo_upd", "demo_payment", "demo_egrul_status", "demo_bankruptcy_case", "demo_efrsb_event",
-            "demo_factoring_package", "demo_risk_signal");
+            "manual_upload_batch", "manual_upload_manager", "manual_upload_client", "manual_upload_buyer", "manual_upload_buyer_financials", "manual_upload_contract",
+            "manual_upload_upd", "manual_upload_payment", "manual_upload_egrul_status", "manual_upload_bankruptcy_case", "manual_upload_efrsb_event",
+            "imitation_factoring_package", "imitation_risk_signal");
 
     private TestDatabase() {
     }

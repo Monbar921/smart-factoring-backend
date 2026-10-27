@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import ru.smart.factoring.backend.AbstractSmartFactoringBackendTest;
 import ru.smart.factoring.backend.factoring.scoring.StopFactors;
-import ru.smart.factoring.backend.factoring.source.DemoImportService;
+import ru.smart.factoring.backend.factoring.source.ManualUploadService;
 import ru.smart.factoring.backend.support.TestDatabase;
 
 import java.nio.file.Path;
@@ -20,7 +20,7 @@ import java.util.TreeMap;
 class FullEfrsbImportManualTest extends AbstractSmartFactoringBackendTest {
 
     @Autowired
-    private DemoImportService importService;
+    private ManualUploadService importService;
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -37,8 +37,8 @@ class FullEfrsbImportManualTest extends AbstractSmartFactoringBackendTest {
         final Map<String, Integer> classes = new TreeMap<>();
         jdbcTemplate.query("""
                 select s.inn, s.status, k.stage, k.end_date
-                from demo_egrul_status s
-                left join lateral (select * from demo_bankruptcy_case bc where bc.inn = s.inn
+                from manual_upload_egrul_status s
+                left join lateral (select * from manual_upload_bankruptcy_case bc where bc.inn = s.inn
                     order by (bc.end_date is null) desc, bc.start_date desc nulls last limit 1) k on true""", rs -> {
             final StopFactors.StopFactor factor = StopFactors.classify(rs.getString("status"), rs.getString("stage"),
                     rs.getObject("end_date", java.time.LocalDate.class));

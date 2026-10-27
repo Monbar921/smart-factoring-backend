@@ -36,9 +36,9 @@ spring:
       schema: ${POSTGRES_SCHEMA:smart_factoring_test}
 
 smart-factoring:
-  demo:
-    # каталог на сервере, из которого POST /demo/import берёт выгрузку генератора по относительному пути
-    import-dir: ${DEMO_IMPORT_DIR:/data/demo}
+  manual-upload:
+    # каталог на сервере, из которого POST /manual-upload берёт выгрузку генератора по относительному пути
+    import-dir: ${MANUAL_UPLOAD_DIR:/data/manual-upload}
   ml:
     # http - сервис моделей smart-factoring-ml, stub - встроенная заглушка (Р-35)
     mode: ${ML_MODE:stub}

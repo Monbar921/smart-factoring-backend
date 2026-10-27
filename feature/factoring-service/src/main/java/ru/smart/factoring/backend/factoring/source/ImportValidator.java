@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Проверка значений выгрузки (docs/claude/module-0/demo-dataset-format.md): копит ошибки «файл:строка: что не так».
+ * Проверка значений выгрузки (docs/claude/module-0/manual-upload-format.md): копит ошибки «файл:строка: что не так».
  */
 final class ImportValidator {
     private static final int MAX_ERRORS = 200;

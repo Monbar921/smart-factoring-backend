@@ -113,7 +113,7 @@ public class CategorizationStep implements RunStep {
             payload.put("updNumbers", upds.stream().map(state -> state.upd().number()).toList());
             payload.put("outstanding", outstanding);
             jdbc.update("""
-                            insert into demo_risk_signal (run_id, buyer_inn, upd_ids, payload)
+                            insert into imitation_risk_signal (run_id, buyer_inn, upd_ids, payload)
                             values (:runId, :buyerInn, cast(:updIds as jsonb), cast(:payload as jsonb))""",
                     new MapSqlParameterSource()
                             .addValue("runId", runId)

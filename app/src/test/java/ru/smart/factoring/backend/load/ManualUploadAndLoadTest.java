@@ -16,9 +16,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Модуль 2: импорт демо-данных и блок 1 «Загрузка данных» на фикстуре fixture-v1 (CASES.md).
+ * Модуль 2: импорт данных ручной загрузки и блок 1 «Загрузка данных» на фикстуре fixture-v1 (CASES.md).
  */
-class DemoImportAndLoadTest extends AbstractSmartFactoringBackendTest {
+class ManualUploadAndLoadTest extends AbstractSmartFactoringBackendTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -35,11 +35,11 @@ class DemoImportAndLoadTest extends AbstractSmartFactoringBackendTest {
 
     @Test
     void importsFixtureWithEvents() {
-        assertThat(count("demo_client")).isEqualTo(8);
-        assertThat(count("demo_upd")).isEqualTo(39);
-        assertThat(count("demo_egrul_status")).isEqualTo(3);
-        assertThat(count("demo_efrsb_event")).isEqualTo(92);
-        assertThat(jdbcTemplate.queryForObject("select annulled from demo_efrsb_event limit 1", Boolean.class)).isNotNull();
+        assertThat(count("manual_upload_client")).isEqualTo(8);
+        assertThat(count("manual_upload_upd")).isEqualTo(39);
+        assertThat(count("manual_upload_egrul_status")).isEqualTo(3);
+        assertThat(count("manual_upload_efrsb_event")).isEqualTo(92);
+        assertThat(jdbcTemplate.queryForObject("select annulled from manual_upload_efrsb_event limit 1", Boolean.class)).isNotNull();
 
         final JsonNode defaults = Api.get("/runs/defaults").body();
         assertThat(defaults.get("dataDate").asString()).isEqualTo("2026-10-24");
@@ -50,7 +50,7 @@ class DemoImportAndLoadTest extends AbstractSmartFactoringBackendTest {
 
     @Test
     void rejectsInvalidExport() {
-        final Api.Response response = Api.post("/demo/import", Map.of("path", "invalid-v1"));
+        final Api.Response response = Api.post("/manual-upload", Map.of("path", "invalid-v1"));
 
         assertThat(response.status()).isEqualTo(400);
         assertThat(response.body().get("code").asString()).isEqualTo("IMPORT_INVALID");
@@ -59,12 +59,12 @@ class DemoImportAndLoadTest extends AbstractSmartFactoringBackendTest {
                 .contains("industry должен быть")
                 .contains("data_date 2026-10-01 не равна последней дате");
         // неудачный импорт ничего не меняет
-        assertThat(count("demo_upd")).isEqualTo(39);
+        assertThat(count("manual_upload_upd")).isEqualTo(39);
     }
 
     @Test
     void rejectsPathOutsideImportDir() {
-        assertThat(Api.post("/demo/import", Map.of("path", "../../../pom.xml")).status()).isEqualTo(400);
+        assertThat(Api.post("/manual-upload", Map.of("path", "../../../pom.xml")).status()).isEqualTo(400);
     }
 
     @Test

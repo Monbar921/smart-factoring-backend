@@ -205,14 +205,14 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
 
 ## Служебные
 
-- `POST /demo/import` — импорт выгрузки генератора. Тело `multipart/form-data`: ZIP с папкой выгрузки (поле `file`)
-  **или** JSON `{ "path": "/data/demo/fixture-v1" }` — путь на сервере (для стенда и тестов).
+- `POST /manual-upload` — импорт выгрузки генератора. Тело `multipart/form-data`: ZIP с папкой выгрузки (поле `file`)
+  **или** JSON `{ "path": "/data/manual-upload/fixture-v1" }` — путь на сервере (для стенда и тестов).
   Импорт — дельта (Р-52): добавляет и обновляет, ничего не стирает. Ответ: `{ batchId, dataDate, snapshotDate,
   rowCounts: {upds: 39, ...}, tables: {upds: {rows, inserted, updated, unchanged, conflicts}, ...},
   issueCounts: {CONFLICT: 1, ...}, issues: [{level, file, line, key, message}] }` (`dataDate` — по всем загруженным
   данным); ошибки формата и ссылок — `400 IMPORT_INVALID`, идёт прогон — `409 RUN_ALREADY_RUNNING`.
-- `POST /demo/import/efrsb` — импорт `events.csv` (multipart `file` или `{ path }`), тоже дельта; ответ — как у `/demo/import`.
-- `DELETE /demo/data` — полная очистка: источники, загруженные данные, прогоны и решения менеджеров (параметры остаются).
+- `POST /manual-upload/efrsb` — импорт `events.csv` (multipart `file` или `{ path }`), тоже дельта; ответ — как у `/manual-upload`.
+- `DELETE /manual-upload/data` — полная очистка: источники, загруженные данные, прогоны и решения менеджеров (параметры остаются).
   `204`; идёт прогон — `409`.
 - `GET /parameters` — параметры Приложения А: `[ { code, value, valueType, section, description } ]`.
 

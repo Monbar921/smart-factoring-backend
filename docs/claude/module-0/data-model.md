@@ -3,9 +3,9 @@
 Все таблицы — в одной схеме `${schema}` (`POSTGRES_SCHEMA`, на стенде и в тестах — `smart_factoring_test`).
 Схема создаётся на стенде заранее, приложение её не создаёт. Две группы таблиц:
 
-- **`demo_*`** — имитации источников и получателей (ДД-1). Сюда импортируются выгрузка генератора и `events.csv`.
+- **`manual_upload_*`** — имитации источников и получателей (ДД-1). Сюда импортируются выгрузка генератора и `events.csv`.
   Блок 1 читает отсюда через адаптеры, имитации получателей пишут сюда. Замена на реальную интеграцию
-  убирает таблицы `demo_*`, но не меняет основные.
+  убирает таблицы `manual_upload_*`, но не меняет основные.
 - **основные** — загруженные данные и результаты прогонов.
 
 Соглашения: ключи `bigint generated always as identity`; деньги `numeric(19,2)`; вероятности, ставки, доли
@@ -46,40 +46,40 @@ erDiagram
 
 ---
 
-## Таблицы `demo_*`
+## Таблицы `manual_upload_*`
 
 ### Источники (выгрузка генератора)
 
-**`demo_import_batch`** — факт импорта.
+**`manual_upload_batch`** — факт импорта.
 `id`, `kind` (`GENERATOR` / `EFRSB`), `format_version`, `seed`, `data_date` (последняя дата УПД/платежа),
 `snapshot_date` (дата снимка внешних данных), `source_name`, `row_counts jsonb`, `imported_at`.
 
-**`demo_manager`** — `id`, `code` uk, `full_name`.
+**`manual_upload_manager`** — `id`, `code` uk, `full_name`.
 
-**`demo_client`** — клиенты банка (синтетика).
+**`manual_upload_client`** — клиенты банка (синтетика).
 `id`, `inn` uk, `name`, `industry` (`CONSTRUCTION` / `PROFESSIONAL` / `MANUFACTURING` / `TRADE`), `okved_section`,
 `region`, `abs_liquidity numeric(19,6)` (для TR), `ar_turnover_days int`, `is_core bool` (группа «ядро», ДД-5),
 `manager_code`, `edo_consent bool`, `factoring_client bool` (сноска к п. 1.1: такие не загружаются),
 `control_case varchar` (К-N, необязательно).
 
-**`demo_buyer`** — реестр покупателей (реальные компании).
+**`manual_upload_buyer`** — реестр покупателей (реальные компании).
 `id`, `inn` uk, `ogrn`, `name`, `okved`, `okved_section`, `region`, `registration_date`, `data_date`.
 ИНН из УПД, которого нет здесь, — «нет данных по покупателю» (п. 1.4, К-17).
 
-**`demo_buyer_financials`** — отчётность ГИР БО по годам; колонки = строки форм.
+**`manual_upload_buyer_financials`** — отчётность ГИР БО по годам; колонки = строки форм.
 `inn`, `year`, uk(`inn`, `year`); `simplified bool`;
 баланс: `assets_total` (1600), `current_assets` (1200), `receivables` (1230), `cash` (1250), `equity` (1300),
 `long_term_borrowings` (1410), `short_term_liabilities` (1500), `short_term_borrowings` (1510), `payables` (1520);
 ОФР: `revenue` (2110), `cost_of_sales` (2120), `sales_profit` (2200), `interest_payable` (2330), `net_profit` (2400).
 Это минимальный набор для драйверов 1–22 п. 4.2. Если коллега отдаст больше строк — добавим колонки.
 
-**`demo_contract`** — `id`, `client_inn`, `buyer_inn`, `number`, `contract_date`, `deferral_days int`;
+**`manual_upload_contract`** — `id`, `client_inn`, `buyer_inn`, `number`, `contract_date`, `deferral_days int`;
 uk(`client_inn`, `number`).
 
-**`demo_upd`** — `id`, `client_inn`, `buyer_inn`, `contract_number`, `number`, `upd_date` (дата отгрузки = подписания),
+**`manual_upload_upd`** — `id`, `client_inn`, `buyer_inn`, `contract_number`, `number`, `upd_date` (дата отгрузки = подписания),
 `amount`, `control_case`; uk(`number`, `upd_date`, `client_inn`) — ключ из НФР-3.
 
-**`demo_payment`** — поступления из выписок клиентов.
+**`manual_upload_payment`** — поступления из выписок клиентов.
 `id`, `source_id` uk, `client_inn` (получатель), `payer_inn`, `amount`, `payment_date`, `purpose` (назначение, текст),
 `control_case`.
 
@@ -88,21 +88,21 @@ uk(`client_inn`, `number`).
 Файл событийный: одна строка = одно событие, статус ЕГРЮЛ и данные дела повторяются в каждой строке.
 При импорте раскладываем на три таблицы.
 
-**`demo_egrul_status`** — `inn` pk, `ogrn`, `name`, `region`, `debtor_category`, `status`, `status_date`.
+**`manual_upload_egrul_status`** — `inn` pk, `ogrn`, `name`, `region`, `debtor_category`, `status`, `status_date`.
 
-**`demo_bankruptcy_case`** — `id`, `inn`, `case_number`, `court`, `applicant`, `stage` («Статус дела»),
+**`manual_upload_bankruptcy_case`** — `id`, `inn`, `case_number`, `court`, `applicant`, `stage` («Статус дела»),
 `start_date`, `start_date_source`, `observation_from`, `rehabilitation_from`, `external_management_from`,
 `declared_bankrupt_on`, `receivership_from`, `end_date`, `outcome`, `first_intent_date`; uk(`inn`, `case_number`).
 
-**`demo_efrsb_event`** — `id`, `inn`, `case_number`, `event_type`, `event`, `details`, `event_date`, `published_on`,
+**`manual_upload_efrsb_event`** — `id`, `inn`, `case_number`, `event_type`, `event`, `details`, `event_date`, `published_on`,
 `message_number`, `annulled bool`, `url`; uk(`inn`, `case_number`, `message_number`, `event_type`, `event`) —
 номер сообщения сам по себе не уникален: одно сообщение даёт несколько строк (судебный акт и стадия процедуры).
 
 ### Получатели (имитации)
 
-**`demo_factoring_package`** — «ВТБ Факторинг» (п. 6.2). `id`, `offer_id` uk, `payload jsonb`, `received_at`.
+**`imitation_factoring_package`** — «ВТБ Факторинг» (п. 6.2). `id`, `offer_id` uk, `payload jsonb`, `received_at`.
 
-**`demo_risk_signal`** — «риск-подразделение» (п. 3.10 в). `id`, `run_id`, `buyer_inn`, `upd_ids jsonb`, `payload jsonb`,
+**`imitation_risk_signal`** — «риск-подразделение» (п. 3.10 в). `id`, `run_id`, `buyer_inn`, `upd_ids jsonb`, `payload jsonb`,
 `received_at`; uk(`run_id`, `buyer_inn`).
 
 «Закрытие кассового разрыва» (3.10 б) — только запись в журнал, своей таблицы нет.
@@ -116,16 +116,16 @@ uk(`client_inn`, `number`).
 | Таблица | Колонки | Ключ уникальности |
 |---|---|---|
 | `manager` | `id`, `code`, `full_name` | `code` |
-| `client` | как в `demo_client` + `manager_id` fk, `loaded_at` | `inn` |
+| `client` | как в `manual_upload_client` + `manager_id` fk, `loaded_at` | `inn` |
 | `buyer` | `id`, `inn`, `ogrn`, `name`, `okved`, `okved_section`, `region`, `registration_date`, `loaded_at` | `inn` |
 | `buyer_external_data` | `buyer_id` pk/fk; `egrul_status`, `egrul_status_date`; `bankruptcy_case_number`, `bankruptcy_stage`, `bankruptcy_start_date`, `bankruptcy_end_date`; `data_date` — дата данных (п. 1.3); `loaded_at` | `buyer_id` |
-| `buyer_financials` | как в `demo_buyer_financials` + `buyer_id` fk, `data_date` | `buyer_id, year` |
+| `buyer_financials` | как в `manual_upload_buyer_financials` + `buyer_id` fk, `data_date` | `buyer_id, year` |
 | `contract` | `id`, `client_id`, `buyer_id` (null — покупателя нет в реестре), `buyer_inn`, `number`, `contract_date`, `deferral_days` | `client_id, number` |
 | `upd` | `id`, `client_id`, `buyer_id` (null — покупателя нет в реестре, п. 1.4), `buyer_inn`, `contract_id`, `number`, `upd_date`, `amount`, `first_loaded_run_id` | `number, upd_date, client_id` |
 | `payment` | `id`, `source_id`, `client_id`, `payer_inn`, `buyer_id` (null, если плательщик не покупатель клиента), `amount`, `payment_date`, `purpose`, `first_loaded_run_id` | `source_id` |
 
 Для покупателя с несколькими делами в `buyer_external_data` попадает «худшее» действующее дело (без даты окончания);
-при отсутствии таких — последнее по дате начала. Все события остаются в `demo_efrsb_event` для детализации.
+при отсутствии таких — последнее по дате начала. Все события остаются в `manual_upload_efrsb_event` для детализации.
 
 Стоп-фактор (п. 4.1) считается в блоке 4, на дату снимка, по правилу:
 - статус ЕГРЮЛ означает банкротство (наблюдение, внешнее управление, конкурсное производство, возбуждено производство),
