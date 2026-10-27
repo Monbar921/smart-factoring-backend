@@ -2,7 +2,9 @@ package ru.smart.factoring.backend.ui.service.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,7 +31,7 @@ public class DemoController {
     private final ParameterService parameterService;
 
     /**
-     * Импорт выгрузки генератора из каталога импорта на сервере. Заменяет демо-набор и сбрасывает прогоны (Р-30).
+     * Импорт выгрузки генератора из каталога импорта на сервере: дельта - добавляет и обновляет, ничего не стирает (Р-52).
      */
     @PostMapping(value = "/internal/rest/demo/import", consumes = MediaType.APPLICATION_JSON_VALUE)
     public DemoImportResultDto importGenerator(@RequestBody final DemoImportRequest request) {
@@ -59,6 +61,15 @@ public class DemoController {
         try (InputStream in = file.getInputStream()) {
             return demoImportService.importEfrsbFile(in);
         }
+    }
+
+    /**
+     * Полная очистка демо-данных: источники, загруженные данные, прогоны и решения менеджеров (Р-52). Параметры остаются.
+     */
+    @DeleteMapping("/internal/rest/demo/data")
+    public ResponseEntity<Void> reset() {
+        demoImportService.reset();
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/internal/rest/parameters")

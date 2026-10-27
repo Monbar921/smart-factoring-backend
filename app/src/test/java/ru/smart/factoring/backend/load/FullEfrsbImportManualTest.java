@@ -28,8 +28,12 @@ class FullEfrsbImportManualTest extends AbstractSmartFactoringBackendTest {
     void importsFullFile() {
         TestDatabase.clean(jdbcTemplate);
         final long started = System.currentTimeMillis();
-        System.out.println("IMPORT " + importService.importEfrsb(Path.of(System.getProperty("efrsb.file")))
+        System.out.println("IMPORT " + importService.importEfrsb(Path.of(System.getProperty("efrsb.file"))).tables()
                 + " in " + (System.currentTimeMillis() - started) + " ms");
+        // повторный импорт того же файла (дельта, Р-52): всё «без изменений»
+        final long again = System.currentTimeMillis();
+        System.out.println("REIMPORT " + importService.importEfrsb(Path.of(System.getProperty("efrsb.file"))).tables()
+                + " in " + (System.currentTimeMillis() - again) + " ms");
         final Map<String, Integer> classes = new TreeMap<>();
         jdbcTemplate.query("""
                 select s.inn, s.status, k.stage, k.end_date
