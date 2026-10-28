@@ -119,7 +119,9 @@ public class CrmService {
                                us.outstanding, us.planned_due_date, us.days_to_due, us.category,
                                bs.pd, bs.risk_level, bs.reasons, s.p_delay, s.p_overdue_90, s.expected_delay_days,
                                d.reason,
-                               (select o.id from offer o where o.upd_id = u.id and o.status = 'QUEUED') as offer_id
+                               (select o.id from offer o where o.upd_id = u.id and o.status = 'QUEUED') as offer_id,
+                               (select o.status from offer o where o.upd_id = u.id and o.status in ('QUEUED', 'TRANSFERRED', 'REJECTED')
+                                order by o.id desc limit 1) as offer_status
                         from upd_state us
                         join upd u on u.id = us.upd_id
                         left join buyer b on b.id = u.buyer_id
@@ -135,7 +137,7 @@ public class CrmService {
                         rs.getString("risk_level") != null ? RiskLevel.valueOf(rs.getString("risk_level")) : null,
                         rs.getBigDecimal("p_delay"), rs.getBigDecimal("p_overdue_90"), rs.getBigDecimal("expected_delay_days"),
                         json.read(rs.getString("reasons"), REASONS), rs.getObject("offer_id", Long.class),
-                        rs.getObject("offer_id", Long.class) == null ? rs.getString("reason") : null));
+                        rs.getObject("offer_id", Long.class) == null ? rs.getString("reason") : null, rs.getString("offer_status")));
 
         final BigDecimal receivables = upds.stream().map(CardUpdDto::outstanding).reduce(BigDecimal.ZERO, BigDecimal::add);
         final BigDecimal overdue = upds.stream().filter(upd -> upd.category() != null && upd.category() > Categories.LAST_FINANCEABLE)

@@ -16,6 +16,7 @@ import ru.smart.factoring.backend.api.details.RunUpdDto;
 import ru.smart.factoring.backend.api.details.TraceStepDto;
 import ru.smart.factoring.backend.api.details.UpdTraceDto;
 import ru.smart.factoring.backend.api.run.RunLogEntryDto;
+import ru.smart.factoring.backend.factoring.decision.NoOfferReason;
 import ru.smart.factoring.backend.factoring.error.ApiException;
 import ru.smart.factoring.backend.factoring.json.Json;
 import tools.jackson.core.type.TypeReference;
@@ -26,6 +27,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -34,7 +36,7 @@ import java.util.stream.Collectors;
 
 /**
  * Детализация прогона для экрана процесса: воронка (ЭП-4), списки объектов и путь УПД по шагам (ЭП-5).
- * Объёмы демо (около 1 500 УПД) позволяют фильтровать и листать в памяти.
+ * Объёмы прогона (тысячи УПД) позволяют фильтровать и листать в памяти.
  */
 @Service
 @RequiredArgsConstructor
@@ -42,6 +44,13 @@ public class RunDetailsService {
     private static final TypeReference<List<ReasonDto>> REASONS = new TypeReference<>() {
     };
     private static final int MAX_PAGE_SIZE = 500;
+    private static final Locale RU = Locale.forLanguageTag("ru-RU");
+    /** разделитель разрядов ru-RU - неразрывный пробел; в тексте пути УПД - обычный */
+    private static final String SPACES = "[\\p{Zs}]";
+    private static final Map<String, String> STOP_FACTORS = Map.of(
+            "BANKRUPTCY", "банкротство", "LIQUIDATION", "ликвидация", "EXCLUSION", "исключение из ЕГРЮЛ");
+    private static final Map<String, String> DELAY_STATUSES = Map.of(
+            "SCORED", "оценён", "NO_PAYMENT_HISTORY", "нет истории оплат покупателя", "ERROR", "ошибка оценки");
     private static final String UPD_ROWS = """
             select u.id, u.number, u.upd_date, u.amount, c.id as client_id, c.inn as client_inn, c.name as client_name,
                    u.buyer_id, coalesce(b.inn, u.buyer_inn) as buyer_inn, b.name as buyer_name,
@@ -157,7 +166,8 @@ public class RunDetailsService {
         final List<Map<String, Object>> decisions = jdbc.queryForList("select * from upd_decision where run_id = :runId and upd_id = :updId",
                 params);
         steps.add(new TraceStepDto(5, "Решение и предложение", decisions.isEmpty() ? "Не рассматривался (оплачен)"
-                : "OFFER".equals(upd.decision()) ? "Предложение: " + upd.eadFinal() + " руб." : "Нет предложения: " + upd.reason(),
+                : "OFFER".equals(upd.decision()) ? "Предложение: " + money(upd.eadFinal())
+                : "Нет предложения: " + NoOfferReason.titleOf(upd.reason()),
                 decisions.isEmpty() ? Map.of() : stringify(decisions.getFirst())));
 
         final List<RunLogEntryDto> log = jdbc.query("""
@@ -242,19 +252,35 @@ public class RunDetailsService {
             return "Нет данных по покупателю: не оценивается";
         }
         if (score.get("stop_factor") != null) {
-            return "Стоп-фактор: " + score.get("stop_factor");
+            return "Стоп-фактор: " + STOP_FACTORS.getOrDefault(String.valueOf(score.get("stop_factor")), String.valueOf(score.get("stop_factor")));
         }
         final StringBuilder text = new StringBuilder();
         if (score.get("pd") != null) {
-            text.append("Уровень ").append(score.get("risk_level")).append(", PD ").append(score.get("pd"));
+            text.append("Уровень ").append(score.get("risk_level")).append(", PD ").append(percent(score.get("pd")));
         }
         if (score.get("status") != null) {
-            text.append("; задержка: ").append(score.get("status"));
+            text.append("; модель задержки: ").append(DELAY_STATUSES.getOrDefault(String.valueOf(score.get("status")),
+                    String.valueOf(score.get("status"))));
             if (score.get("p_delay") != null) {
-                text.append(", P(>порога) ").append(score.get("p_delay")).append(", P(90+) ").append(score.get("p_overdue_90"));
+                text.append(", вероятность задержки ").append(percent(score.get("p_delay")))
+                        .append(", просрочки 90+ ").append(percent(score.get("p_overdue_90")));
             }
         }
         return text.isEmpty() ? "Модель задержки не применялась" : text.toString();
+    }
+
+    /**
+     * Доля - в проценты: 0.0123 - «1,23 %».
+     */
+    private static String percent(final Object value) {
+        return value == null ? "—" : String.format(RU, "%.2f %%", new BigDecimal(value.toString()).movePointRight(2));
+    }
+
+    /**
+     * Сумма с разделителями разрядов: «850 000 ₽».
+     */
+    private static String money(final BigDecimal value) {
+        return value == null ? "—" : String.format(RU, "%,.0f ₽", value).replaceAll(SPACES, " ");
     }
 
     /**

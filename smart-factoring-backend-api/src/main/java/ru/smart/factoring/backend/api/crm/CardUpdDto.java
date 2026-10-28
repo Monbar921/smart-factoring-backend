@@ -11,6 +11,7 @@ import java.util.List;
  * Открытый УПД в карточке клиента с оценкой и решением (п. 5.5).
  *
  * @param noOfferReason код причины (п. 5.2, 5.3) или null, если есть предложение
+ * @param offerStatus   статус последнего предложения по УПД: QUEUED, TRANSFERRED, REJECTED; null - предложения не было
  */
 public record CardUpdDto(long updId,
                          String number,
@@ -28,5 +29,6 @@ public record CardUpdDto(long updId,
                          BigDecimal expectedDelayDays,
                          List<ReasonDto> reasons,
                          Long offerId,
-                         String noOfferReason) {
+                         String noOfferReason,
+                         String offerStatus) {
 }

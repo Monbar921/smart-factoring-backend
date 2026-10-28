@@ -11,7 +11,9 @@ import java.util.List;
 /**
  * Карточка предложения для менеджера (п. 5.3, пункт 4).
  *
- * @param status QUEUED, TRANSFERRED, REJECTED или REVOKED
+ * @param status     QUEUED, TRANSFERRED, REJECTED или REVOKED
+ * @param textSource откуда тексты карточки: LLM - от LLM в этом прогоне, CACHE - ответ LLM из кеша, TEMPLATE - шаблон
+ *                   без LLM, FAILED - LLM не ответила (причины шаблоном, без черновика); null - предложение до Р-58
  */
 public record OfferDto(long offerId,
                        String status,
@@ -39,5 +41,6 @@ public record OfferDto(long offerId,
                        long lastRunId,
                        String revokeReason,
                        String decidedBy,
-                       OffsetDateTime decidedAt) {
+                       OffsetDateTime decidedAt,
+                       String textSource) {
 }

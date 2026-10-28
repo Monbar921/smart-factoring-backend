@@ -744,4 +744,13 @@
         </sql>
     </changeSet>
 
+    <!-- Р-58: откуда тексты карточки предложения - менеджер видит, от LLM они или шаблоном -->
+    <changeSet id="SMF-33-offer-text-source" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".offer add column text_source varchar(16)
+                check (text_source in ('LLM', 'CACHE', 'TEMPLATE', 'FAILED'));
+            comment on column "${schema}".offer.text_source is 'Тексты карточки: LLM, CACHE (ответ LLM из кеша), TEMPLATE, FAILED (Р-58)';
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

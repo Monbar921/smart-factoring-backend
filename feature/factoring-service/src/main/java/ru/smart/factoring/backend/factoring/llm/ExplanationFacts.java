@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 
@@ -19,11 +20,13 @@ public record ExplanationFacts(String clientName, String buyerName, String buyer
                                String ead, String price, String priceRate, int termDays, List<ModelClient.Reason> reasons) {
     private static final Locale RU = Locale.forLanguageTag("ru");
     private static final BigDecimal HUNDRED = new BigDecimal("100");
+    /** даты - как пишут в письмах: 29.12.2025, не ISO */
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     public static ExplanationFacts of(final DecisionEngine.Decision decision, final String buyerName) {
         final Economics.Result economics = decision.finalEconomics();
         return new ExplanationFacts(decision.client().name(), buyerName, decision.state().upd().buyerInn(),
-                decision.state().upd().number(), decision.state().upd().updDate().toString(), decision.buyer().riskLevel().name(),
+                decision.state().upd().number(), decision.state().upd().updDate().format(DATE), decision.buyer().riskLevel().name(),
                 percent(decision.buyer().pd()), decision.buyer().lowData(), decision.delayProbable(), decision.reducedToLimit(),
                 money(economics.ead()), money(economics.price()), percent(economics.priceRate()), economics.termDays(),
                 decision.buyer().reasons() != null ? decision.buyer().reasons() : List.of());
@@ -35,7 +38,7 @@ public record ExplanationFacts(String clientName, String buyerName, String buyer
     public String describe() {
         final StringBuilder text = new StringBuilder()
                 .append("Клиент: ").append(clientName).append('\n')
-                .append("Покупатель: ").append(buyerName).append(", ИНН ").append(buyerInn).append('\n')
+                .append("Покупатель: ").append(buyerTitle()).append('\n')
                 .append("УПД: № ").append(updNumber).append(" от ").append(updDate).append('\n')
                 .append("Уровень риска покупателя: ").append(riskLevel).append(", PD ").append(pd)
                 .append(lowData ? " (мало данных: базовый PD по отрасли и размеру)" : "").append('\n')
@@ -48,6 +51,14 @@ public record ExplanationFacts(String clientName, String buyerName, String buyer
                 .append(reason.value() != null ? " = " + reason.value().stripTrailingZeros().toPlainString() : "")
                 .append(": ").append("INCREASES_RISK".equals(reason.direction()) ? "повышает риск" : "снижает риск").append('\n'));
         return text.toString();
+    }
+
+    /**
+     * Покупатель для текста: «ООО Ромашка, ИНН …»; без наименования (в партиях ML-команды оно «ИНН …») - только ИНН.
+     */
+    public String buyerTitle() {
+        final boolean noName = buyerName == null || buyerName.isBlank() || buyerName.startsWith("ИНН ");
+        return noName ? "ИНН " + buyerInn : buyerName + ", ИНН " + buyerInn;
     }
 
     static String money(final BigDecimal value) {
