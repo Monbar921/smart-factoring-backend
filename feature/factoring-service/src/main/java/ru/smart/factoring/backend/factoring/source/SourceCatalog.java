@@ -1,13 +1,18 @@
 package ru.smart.factoring.backend.factoring.source;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import ru.smart.factoring.backend.api.common.ClientRefDto;
+import ru.smart.factoring.backend.api.run.RunBatchDto;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 
 /**
  * Что есть в источниках (имитациях ЭДО, выписок и хранилища внешних данных) до загрузки: для формы запуска (ЭП-1).
@@ -35,6 +40,20 @@ public class SourceCatalog {
                         select coalesce((select max(snapshot_date) from manual_upload_batch), (select max(data_date) from manual_upload_buyer))""")
                 .query(LocalDate.class)
                 .optional();
+    }
+
+    /**
+     * Партии ручной загрузки и их клиенты, которых загружает блок 1 (Р-62), - по номеру партии.
+     */
+    public List<RunBatchDto> batches() {
+        final Map<String, List<String>> byBatch = new TreeMap<>();
+        jdbc.sql("""
+                        select batch_id, inn from manual_upload_client
+                        where batch_id is not null and edo_consent and not factoring_client
+                        order by batch_id, name""")
+                .query((RowCallbackHandler) rs -> byBatch.computeIfAbsent(rs.getString("batch_id"), id -> new ArrayList<>())
+                        .add(rs.getString("inn")));
+        return byBatch.entrySet().stream().map(entry -> new RunBatchDto(entry.getKey(), entry.getValue())).toList();
     }
 
     /**

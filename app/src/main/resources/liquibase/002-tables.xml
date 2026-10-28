@@ -753,4 +753,12 @@
         </sql>
     </changeSet>
 
+    <!-- Р-62: партия клиента ручной загрузки - выбор клиентов прогона по партиям -->
+    <changeSet id="SMF-33-manual-upload-client-batch" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".manual_upload_client add column batch_id varchar(64);
+            comment on column "${schema}".manual_upload_client.batch_id is 'batch_id партии ML-команды; null - выгрузка генератора (Р-62)';
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

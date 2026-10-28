@@ -14,6 +14,9 @@ import java.util.List;
  * @param status     QUEUED, TRANSFERRED, REJECTED или REVOKED
  * @param textSource откуда тексты карточки: LLM - от LLM в этом прогоне, CACHE - ответ LLM из кеша, TEMPLATE - шаблон
  *                   без LLM, FAILED - LLM не ответила (причины шаблоном, без черновика); null - предложение до Р-58
+ * @param pDelay     вероятность задержки оплаты больше порога по модели задержки (последний прогон); null - модель
+ *                   задержки не применялась (нет истории оплат)
+ * @param delayThresholdDays порог задержки прогона, дней (7, 14 или 30): «оплатят позже срока больше чем на X дней»
  */
 public record OfferDto(long offerId,
                        String status,
@@ -42,5 +45,7 @@ public record OfferDto(long offerId,
                        String revokeReason,
                        String decidedBy,
                        OffsetDateTime decidedAt,
-                       String textSource) {
+                       String textSource,
+                       BigDecimal pDelay,
+                       Integer delayThresholdDays) {
 }

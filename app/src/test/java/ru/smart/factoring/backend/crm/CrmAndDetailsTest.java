@@ -44,6 +44,9 @@ class CrmAndDetailsTest extends AbstractSmartFactoringBackendTest {
         assertThat(queue.get(0).get("rank").decimalValue()).isGreaterThanOrEqualTo(queue.get(1).get("rank").decimalValue());
         // Р-58: менеджер видит, откуда тексты карточки (в тестах LLM - заглушка, тексты шаблоном)
         assertThat(queue).allSatisfy(offer -> assertThat(offer.get("textSource").asString()).isEqualTo("TEMPLATE"));
+        // Р-61: для блока «Оценка риска» - вероятность задержки и порог прогона
+        assertThat(queue).allSatisfy(offer -> assertThat(offer.get("delayThresholdDays").asInt()).isPositive());
+        assertThat(queue).anySatisfy(offer -> assertThat(offer.get("pDelay").isNull()).isFalse());
 
         final long transferred = offerId(queue, "U-1004");
         final long rejected = offerId(queue, "U-1104");
@@ -104,6 +107,7 @@ class CrmAndDetailsTest extends AbstractSmartFactoringBackendTest {
 
         final JsonNode funnel = Api.get("/runs/" + runId + "/funnel").body();
         assertThat(funnel.get(0).get("code").asString()).isEqualTo("OPEN");
+        assertThat(funnel.get(0).get("title").asString()).isEqualTo("Все неоплаченные счета");
         assertThat(funnel.get(0).get("count").asInt()).isEqualTo(28);
         assertThat(funnel.get(1).get("count").asInt()).isEqualTo(24);
         final JsonNode queued = funnel.get(funnel.size() - 1);

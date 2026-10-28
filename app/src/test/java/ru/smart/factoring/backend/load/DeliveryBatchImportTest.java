@@ -166,6 +166,12 @@ class DeliveryBatchImportTest extends AbstractSmartFactoringBackendTest {
         assertThat(result.issueCounts()).isEmpty();
         assertThat(jdbcTemplate.queryForObject("select kind || ' ' || source_name from manual_upload_batch", String.class))
                 .isEqualTo("DELIVERY index.json: batch_01, batch_02");
+        // Р-62: партии с их клиентами - для выбора клиентов прогона по партиям
+        final JsonNode batches = Api.get("/runs/defaults").body().get("batches");
+        assertThat(batches).hasSize(2);
+        assertThat(batches.get(0).get("batchId").asString()).isEqualTo("batch_01");
+        assertThat(batches.get(0).get("clientInns")).hasSize(5);
+        assertThat(batches.get(1).get("clientInns")).hasSize(2);
 
         // тот же набор ещё раз - всё «без изменений»
         final ManualUploadResultDto again = importService.importGenerator(INDEX_SET);

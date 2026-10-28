@@ -82,6 +82,8 @@ final class DeliveryBatch {
         final Csv.Table payments = table(root, PAYMENTS, declared, v, List.of("payment_id", "pay_date", "client_id", "buyer_inn",
                 "amount_rub"));
 
+        // партия клиента - для выбора клиентов прогона по партиям (Р-62)
+        final String batchId = string(manifest.get("batch_id"));
         // client_id и contract_id - внутренние ключи партии: в таблицы попадают ИНН клиента и номер договора.
         // Неизвестный id остаётся как есть, и проверка ссылок выгрузки сообщит, что такого клиента или договора нет
         final Map<String, String> clientInn = new HashMap<>();
@@ -98,7 +100,7 @@ final class DeliveryBatch {
                     "industry", INDUSTRIES.getOrDefault(row.get("industry"), row.get("industry")), "region", row.get("region"),
                     "abs_liquidity", row.get("abs_liquidity"), "ar_turnover_days", days(row.get("receivable_days")),
                     "is_core", bool(row.get("core")), "manager_code", row.get("manager_id"),
-                    "edo_consent", bool(row.get("edo_consent")), "factoring_client", "false"));
+                    "edo_consent", bool(row.get("edo_consent")), "factoring_client", "false", "batch_id", batchId));
         }
         final List<Csv.Row> managerRows = new ArrayList<>();
         int line = 1;
