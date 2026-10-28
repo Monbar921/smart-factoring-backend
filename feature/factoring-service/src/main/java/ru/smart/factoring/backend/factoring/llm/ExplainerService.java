@@ -89,7 +89,9 @@ public class ExplainerService implements Explainer {
                     yield cached;
                 }
                 try {
-                    final String reasons = checked(reasonsPrompt, facts);
+                    // без показателей покупателя (PD из партии данных) LLM нечего объяснять: на месте пустого списка она
+                    // подставляла пометки предложения - причины шаблоном, черновик клиенту по-прежнему от LLM (Р-61)
+                    final String reasons = facts.reasons().isEmpty() ? templateReasons(facts) : checked(reasonsPrompt, facts);
                     final String draft = checked(draftPrompt, facts);
                     if (reasons == null || draft == null) {
                         // LLM дважды ответила с домыслами: такой текст менеджеру не показываем, вместо него - шаблон
@@ -149,6 +151,9 @@ public class ExplainerService implements Explainer {
             text.append(" Данных мало: оценка по отрасли и размеру компании.");
         }
         final List<ModelClient.Reason> reasons = facts.reasons();
+        if (reasons.isEmpty()) {
+            text.append(" Показатели покупателя, повлиявшие на оценку, не переданы: оценка риска получена вместе с данными.");
+        }
         final String lowers = reasons.stream().filter(reason -> !"INCREASES_RISK".equals(reason.direction()))
                 .map(reason -> lower(reason.title())).collect(Collectors.joining(", "));
         final String raises = reasons.stream().filter(reason -> "INCREASES_RISK".equals(reason.direction()))

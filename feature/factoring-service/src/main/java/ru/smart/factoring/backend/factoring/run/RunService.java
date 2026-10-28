@@ -61,7 +61,7 @@ public class RunService {
 
     public RunDefaultsDto defaults() {
         return new RunDefaultsDto(sourceCatalog.dataDate().orElse(null), sourceCatalog.snapshotDate().orElse(null),
-                sourceCatalog.eligibleClients(), runRepository.findRunningId().orElse(null));
+                sourceCatalog.eligibleClients(), runRepository.findRunningId().orElse(null), sourceCatalog.batches());
     }
 
     /**

@@ -10,6 +10,7 @@
 | [07-report.md](07-report.md) | **Итоговый отчёт: что сделано, что проверено, что нужно решить** |
 | [08-stand-test.md](08-stand-test.md) | Сквозная проверка стенда test: шаги и ожидаемые результаты |
 | [09-llm-contract.md](09-llm-contract.md) | Контракт с LLM для коллеги: что уходит в промпт GigaChat и какой ответ ждём |
+| [10-improvements-plan.md](10-improvements-plan.md) | План исправлений по замечаниям тестирования 28.10 (`docs/improvements`): блоки работ, порядок, вопросы |
 | [deploy-notes.md](deploy-notes.md) | Что добавить в smart-factoring-deploy: сервис ml, переменные |
 | [tools/gen_perf_dataset.py](tools/gen_perf_dataset.py) | Генератор набора объёма демо для проверки времени прогона |
 | [05-module-0-plan.md](05-module-0-plan.md) | Детальный план модуля 0: модель данных, Liquibase, контракты |

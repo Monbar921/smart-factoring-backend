@@ -26,6 +26,13 @@ public final class UpdNumber {
         return hasPrefix(number) ? number : PREFIX + " № " + number;
     }
 
+    /**
+     * Номер после слова «УПД» в строке «УПД: …»: «№ U-1004» или «УПД-0255».
+     */
+    public static String withNo(final String number) {
+        return hasPrefix(number) ? number : "№ " + number;
+    }
+
     private static boolean hasPrefix(final String number) {
         return number != null && number.toUpperCase(Locale.ROOT).startsWith(PREFIX);
     }

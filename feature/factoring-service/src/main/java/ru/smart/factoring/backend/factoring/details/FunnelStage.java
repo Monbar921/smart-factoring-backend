@@ -7,15 +7,15 @@ import java.util.List;
  * деления лимита: после деления (есть limit_order) - отсев на ступени QUEUED.
  */
 public enum FunnelStage {
-    OPEN("Открытые УПД", List.of()),
-    CATEGORY_1_4("Категории 1–4", List.of("UPD_OVERDUE", "ALREADY_DECIDED")),
-    HAS_DATA("Есть данные по покупателю", List.of("NO_BUYER_DATA")),
-    NO_STOP_FACTOR("Без стоп-факторов", List.of("STOP_FACTOR")),
-    HAS_HISTORY("Есть история оплат, покупатель оценён", List.of("NO_PAYMENT_HISTORY", "SCORING_ERROR")),
-    PASSED_RULES("Прошли правила решения", List.of("RISK_LEVEL_D", "OVERDUE_90_PROBABLE", "LIMIT_EXHAUSTED", "DELAY_PROBABLE_LEVEL_C",
+    OPEN("Все неоплаченные счета", List.of()),
+    CATEGORY_1_4("Срок оплаты ещё не прошёл", List.of("UPD_OVERDUE", "ALREADY_DECIDED")),
+    HAS_DATA("По покупателю есть данные", List.of("NO_BUYER_DATA")),
+    NO_STOP_FACTOR("У покупателя нет стоп-факторов", List.of("STOP_FACTOR")),
+    HAS_HISTORY("Есть история оплат", List.of("NO_PAYMENT_HISTORY", "SCORING_ERROR")),
+    PASSED_RULES("Подходит по условиям банка", List.of("RISK_LEVEL_D", "OVERDUE_90_PROBABLE", "LIMIT_EXHAUSTED", "DELAY_PROBABLE_LEVEL_C",
             "SMALL_AMOUNT", "SHORT_TERM", "INCOME_BELOW_MIN")),
-    TOP_N("Три лучших на клиента", List.of("NOT_IN_TOP_N")),
-    QUEUED("В очереди после лимита", List.of("LIMIT_EXHAUSTED", "INCOME_BELOW_MIN"));
+    TOP_N("Три лучших предложения на клиента", List.of("NOT_IN_TOP_N")),
+    QUEUED("Можно предложить клиентам", List.of("LIMIT_EXHAUSTED", "INCOME_BELOW_MIN"));
 
     private final String title;
     private final List<String> reasons;

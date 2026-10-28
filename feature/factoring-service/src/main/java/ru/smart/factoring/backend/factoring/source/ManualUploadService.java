@@ -76,7 +76,7 @@ public class ManualUploadService {
             List.of(), List.of("full_name"), false, List.of());
     private static final SourceUpsert CLIENTS = new SourceUpsert("clients", "manual_upload_client", "clients.csv", List.of("inn"), Set.of(),
             List.of(), List.of("name", "industry", "okved_section", "region", "abs_liquidity", "ar_turnover_days", "is_core",
-            "manager_code", "edo_consent", "factoring_client", CONTROL_CASE), false, List.of());
+            "manager_code", "edo_consent", "factoring_client", CONTROL_CASE, "batch_id"), false, List.of());
     private static final SourceUpsert BUYERS = new SourceUpsert("buyers", "manual_upload_buyer", "buyers.csv", List.of("inn"), Set.of(),
             List.of(), List.of("ogrn", "name", "okved", "okved_section", "region", "registration_date", "data_date", "pd",
             "pd_model_version"), false, List.of());
@@ -615,7 +615,7 @@ public class ManualUploadService {
                 .addValue("ar_turnover_days", integer(row.get("ar_turnover_days")))
                 .addValue("is_core", bool(row.get("is_core"))).addValue("manager_code", row.get("manager_code"))
                 .addValue("edo_consent", bool(row.get("edo_consent")))
-                .addValue("factoring_client", bool(row.get("factoring_client")))
+                .addValue("factoring_client", bool(row.get("factoring_client"))).addValue("batch_id", row.get("batch_id"))
                 .addValue(CONTROL_CASE, row.get(CONTROL_CASE)));
         write(BUYERS, t.buyers(), Set.of(), counts, report, (row, p) -> p.addValue("inn", row.get("inn")).addValue("ogrn", row.get("ogrn"))
                 .addValue("name", row.get("name")).addValue("okved", row.get("okved"))
