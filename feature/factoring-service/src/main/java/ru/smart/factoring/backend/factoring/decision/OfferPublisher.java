@@ -67,7 +67,7 @@ public class OfferPublisher {
                         update offer set last_run_id = :runId, is_new = false, ead = :ead, price = :price, price_rate = :priceRate,
                             term_days = :termDays, income = :income, el = :el, risk_level = :riskLevel, pd = :pd, rank_value = :rank,
                             flags = cast(:flags as jsonb), reasons = cast(:reasons as jsonb), reasons_text = :reasonsText,
-                            message_draft = :messageDraft, updated_at = now()
+                            message_draft = :messageDraft, text_source = :textSource, updated_at = now()
                         where id = :id""", params);
                 offerId = existing.id();
                 if (ChronoUnit.DAYS.between(existing.createdCalcDate(), context.getCalcDate()) >= context.getParameters().reminderDays()) {
@@ -79,10 +79,11 @@ public class OfferPublisher {
             } else {
                 offerId = jdbc.queryForObject("""
                         insert into offer (upd_id, client_id, buyer_id, manager_id, status, created_run_id, last_run_id, is_new, ead,
-                            price, price_rate, term_days, income, el, risk_level, pd, rank_value, flags, reasons, reasons_text, message_draft)
+                            price, price_rate, term_days, income, el, risk_level, pd, rank_value, flags, reasons, reasons_text, message_draft,
+                            text_source)
                         values (:updId, :clientId, :buyerId, :managerId, 'QUEUED', :runId, :runId, true, :ead, :price, :priceRate,
                             :termDays, :income, :el, :riskLevel, :pd, :rank, cast(:flags as jsonb), cast(:reasons as jsonb),
-                            :reasonsText, :messageDraft)
+                            :reasonsText, :messageDraft, :textSource)
                         returning id""", params, Long.class);
                 newUpdIds.add(updId);
                 if (decision.finalEconomics().ead().compareTo(context.getParameters().newOfferNotificationThreshold()) > 0) {
@@ -154,7 +155,8 @@ public class OfferPublisher {
                 .addValue("flags", json.write(flags))
                 .addValue("reasons", json.write(decision.buyer().reasons()))
                 .addValue("reasonsText", offer.texts().reasonsText())
-                .addValue("messageDraft", offer.texts().messageDraft());
+                .addValue("messageDraft", offer.texts().messageDraft())
+                .addValue("textSource", offer.texts().source().name());
     }
 
     private MapSqlParameterSource notification(final long runId, final String type, final long offerId,

@@ -35,7 +35,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class ExplainerService implements Explainer {
-    private static final String PROMPT_VERSION = "v1";
+    /** входит в ключ кеша: новая версия промптов или фактов - тексты запрашиваются заново (v2 - Р-58) */
+    private static final String PROMPT_VERSION = "v2";
     private static final double TEMPERATURE = 0.2;
     private static final int MAX_TOKENS = 512;
     /** finish_reason GigaChat: ответ заменён шаблонной фразой из-за цензуры */
@@ -105,7 +106,7 @@ public class ExplainerService implements Explainer {
     }
 
     static String templateReasons(final ExplanationFacts facts) {
-        final StringBuilder text = new StringBuilder("Покупатель ").append(facts.buyerName()).append(": уровень риска ")
+        final StringBuilder text = new StringBuilder("Покупатель ").append(facts.buyerTitle()).append(": уровень риска ")
                 .append(facts.riskLevel()).append(", вероятность дефолта за год ").append(facts.pd()).append('.');
         if (facts.lowData()) {
             text.append(" Данных мало: оценка по отрасли и размеру компании.");
@@ -128,7 +129,7 @@ public class ExplainerService implements Explainer {
     }
 
     static String templateDraft(final ExplanationFacts facts) {
-        return "Добрый день! По отгрузке покупателю " + facts.buyerName() + " (УПД № " + facts.updNumber() + " от " + facts.updDate()
+        return "Добрый день! По отгрузке покупателю " + facts.buyerTitle() + " (УПД № " + facts.updNumber() + " от " + facts.updDate()
                 + ") банк готов сразу выплатить " + facts.ead() + " руб., не дожидаясь оплаты от покупателя. Срок - " + facts.termDays()
                 + " дн., стоимость - " + facts.price() + " руб. (" + facts.priceRate() + " годовых). Если интересно, оформим "
                 + "факторинг в ВТБ Факторинге: от вас нужно только согласие.";

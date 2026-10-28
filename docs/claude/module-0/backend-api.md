@@ -168,9 +168,13 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
   "ead": 4500000.00, "price": 102082.00, "priceRate": 0.2070, "termDays": 40, "riskLevel": "A", "pd": 0.005,
   "income": 14795.00, "el": 360.00, "tr": 0.105, "rank": 1553.00,
   "flags": { "delayProbable": false, "lowData": false, "reducedToLimit": false, "isNew": true },
-  "reasonsText": "…", "messageDraft": "…", "queuedAt": "...", "lastRunId": 13
+  "reasonsText": "…", "messageDraft": "…", "queuedAt": "...", "lastRunId": 13, "textSource": "LLM"
 } ]
 ```
+
+`textSource` (Р-58) — откуда тексты карточки: `LLM` (ответ LLM в этом прогоне), `CACHE` (ответ LLM из кеша),
+`TEMPLATE` (шаблон, LLM выключена), `FAILED` (LLM не ответила: причины шаблоном, без черновика); null — предложение
+создано до Р-58.
 
 ### `GET /managers/{id}/notifications?page&size`
 
@@ -190,10 +194,13 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
     "updId": 105, "number": "U-1005", "outstanding": 4000000.00, "category": 2,
     "pd": 0.005, "riskLevel": "A", "pDelay": 0.10, "pOverdue90": 0.25,
     "reasons": [ { "title": "…", "direction": "DECREASES_RISK", "value": 2.1 } ], "reasonsText": "…",
-    "offerId": null, "noOfferReason": "OVERDUE_90_PROBABLE"
+    "offerId": null, "noOfferReason": "OVERDUE_90_PROBABLE", "offerStatus": null
   } ]
 }
 ```
+
+`offerStatus` (Р-58) — статус последнего предложения по УПД: `QUEUED`, `TRANSFERRED`, `REJECTED`; null — предложения
+не было. По нему карточка показывает «передан в факторинг» / «отклонён менеджером» вместо пустой причины.
 
 `summary`: дебиторка всего — Σ остатков открытых УПД; просрочено — Σ остатков кат. 5–8; доступно к финансированию —
 Σ `ead` предложений в очереди; кассовый разрыв — просроченное, если ликвидность клиента ниже порога (Р-15), иначе null.

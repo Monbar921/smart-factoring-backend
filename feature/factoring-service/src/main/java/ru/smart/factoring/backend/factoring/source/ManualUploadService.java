@@ -765,7 +765,9 @@ public class ManualUploadService {
             final Path dir = Files.createTempDirectory("manual-upload");
             try (ZipInputStream in = new ZipInputStream(zip)) {
                 ZipEntry entry;
+                boolean empty = true;
                 while ((entry = in.getNextEntry()) != null) {
+                    empty = false;
                     final Path target = dir.resolve(entry.getName()).normalize();
                     if (!target.startsWith(dir)) {
                         throw ApiException.validation("Недопустимый путь в архиве: " + entry.getName());
@@ -776,6 +778,11 @@ public class ManualUploadService {
                         Files.createDirectories(target.getParent());
                         Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
                     }
+                }
+                // ZipInputStream на не-ZIP не падает, а просто не находит записей
+                if (empty) {
+                    deleteQuietly(dir);
+                    throw ApiException.validation("Не ZIP-архив или пустой архив: загрузите ZIP с папкой выгрузки или набором партий");
                 }
             }
             return dir;

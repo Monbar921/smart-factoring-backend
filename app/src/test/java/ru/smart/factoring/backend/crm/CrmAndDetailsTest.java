@@ -42,6 +42,8 @@ class CrmAndDetailsTest extends AbstractSmartFactoringBackendTest {
         assertThat(queue).hasSize(12);
         // очередь по убыванию ранга
         assertThat(queue.get(0).get("rank").decimalValue()).isGreaterThanOrEqualTo(queue.get(1).get("rank").decimalValue());
+        // Р-58: менеджер видит, откуда тексты карточки (в тестах LLM - заглушка, тексты шаблоном)
+        assertThat(queue).allSatisfy(offer -> assertThat(offer.get("textSource").asString()).isEqualTo("TEMPLATE"));
 
         final long transferred = offerId(queue, "U-1004");
         final long rejected = offerId(queue, "U-1104");
@@ -65,6 +67,10 @@ class CrmAndDetailsTest extends AbstractSmartFactoringBackendTest {
                 select d.limit_available_before from upd_decision d join upd u on u.id = d.upd_id
                 where d.run_id = ? and u.number = 'U-1003'""", BigDecimal.class, runId)).isEqualByComparingTo("25500000");
         assertThat(jdbcTemplate.queryForObject("select count(*) from imitation_factoring_package", Integer.class)).isEqualTo(1);
+        // Р-58: в карточке клиента у УПД с решением - статус решения, а не пусто
+        final JsonNode card = Api.get("/clients/" + clientId("7710000001") + "/card").body();
+        assertThat(cardUpd(card, "U-1004").get("offerStatus").asString()).isEqualTo("TRANSFERRED");
+        assertThat(cardUpd(card, "U-1104").get("offerStatus").asString()).isEqualTo("REJECTED");
         assertThat(jdbcTemplate.queryForObject("select count(*) from run_log where event_code in ('OFFER_TRANSFERRED', 'OFFER_REJECTED')",
                 Integer.class)).isEqualTo(2);
     }
@@ -122,9 +128,25 @@ class CrmAndDetailsTest extends AbstractSmartFactoringBackendTest {
         assertThat(trace.get("steps")).hasSize(5);
         assertThat(trace.get("steps").get(1).get("details").get("allocations")).hasSize(2);
         assertThat(trace.get("steps").get(2).get("summary").asString()).isEqualTo("Категория 6");
+        // Р-58: в пути УПД - понятный текст, без кодов вроде UPD_OVERDUE или SCORED
+        assertThat(trace.get("steps").get(4).get("summary").asString()).isEqualTo("Нет предложения: УПД просрочен");
+        final long offered = jdbcTemplate.queryForObject("select id from upd where number = 'U-1004'", Long.class);
+        final JsonNode offeredTrace = Api.get("/runs/" + runId + "/upds/" + offered + "/trace").body();
+        assertThat(offeredTrace.get("steps").get(3).get("summary").asString())
+                .isEqualTo("Уровень A, PD 0,50 %; модель задержки: оценён, вероятность задержки 10,00 %, просрочки 90+ 1,00 %");
+        assertThat(offeredTrace.get("steps").get(4).get("summary").asString()).matches("Предложение: [0-9 ]+ ₽");
 
         assertThat(Api.get("/runs/" + runId + "/buyers").body()).hasSize(9);
         assertThat(Api.get("/runs/" + runId + "/clients").body()).hasSize(6);
+    }
+
+    private static JsonNode cardUpd(final JsonNode card, final String number) {
+        for (final JsonNode upd : card.get("upds")) {
+            if (number.equals(upd.get("number").asString())) {
+                return upd;
+            }
+        }
+        throw new AssertionError("Нет УПД " + number + " в карточке клиента");
     }
 
     private long offerId(final JsonNode queue, final String number) {

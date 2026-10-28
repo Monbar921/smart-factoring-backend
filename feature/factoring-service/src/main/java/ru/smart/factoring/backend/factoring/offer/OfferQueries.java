@@ -77,7 +77,7 @@ public class OfferQueries {
                             rs.getBoolean("is_new")),
                     json.read(rs.getString("reasons"), REASONS), rs.getString("reasons_text"), rs.getString("message_draft"),
                     rs.getObject("queued_at", OffsetDateTime.class), rs.getLong("last_run_id"), rs.getString("revoke_reason"),
-                    rs.getString("decided_by"), rs.getObject("decided_at", OffsetDateTime.class));
+                    rs.getString("decided_by"), rs.getObject("decided_at", OffsetDateTime.class), rs.getString("text_source"));
         };
     }
 

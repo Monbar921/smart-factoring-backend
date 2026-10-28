@@ -173,6 +173,14 @@ class DeliveryBatchImportTest extends AbstractSmartFactoringBackendTest {
     }
 
     @Test
+    void rejectsFileThatIsNotZip() {
+        // ZipInputStream на не-ZIP не падает, а не находит записей: без проверки вышло бы «manifest.json: нет файла»
+        assertThatThrownBy(() -> importService.importGeneratorZip(new ByteArrayInputStream("не архив".getBytes(StandardCharsets.UTF_8))))
+                .isInstanceOf(ApiException.class)
+                .hasMessageStartingWith("Не ZIP-архив или пустой архив");
+    }
+
+    @Test
     void indexMustDescribeBatchesExactly() throws IOException {
         copyIndexSet();
         Files.writeString(dir.resolve("index.json"), Files.readString(dir.resolve("index.json"))
