@@ -25,6 +25,8 @@ class ExplanationFactsTest {
 
         assertThat(facts.describe()).contains("Главные причины оценки покупателя: не переданы");
         assertThat(ExplainerService.templateReasons(facts))
+                .startsWith("Покупатель ИНН 9725077448: риск B, средний риск. Около 2 из 100 таких компаний за год не смогут")
+                .doesNotContain("1,58")
                 .contains("не переданы")
                 .doesNotContain("Снижают риск", "Повышают риск");
     }
@@ -38,7 +40,8 @@ class ExplanationFactsTest {
     }
 
     private static ExplanationFacts facts(final String number, final List<ModelClient.Reason> reasons) {
-        return new ExplanationFacts("Клиент 0008", "ИНН 9725077448", "9725077448", number, "22.12.2025", "B", "1,58%", false, true,
+        return new ExplanationFacts("Клиент 0008", "ИНН 9725077448", "9725077448", number, "22.12.2025", "B", "1,58%",
+                ExplanationFacts.outOf100(new BigDecimal("0.0158")), false, true,
                 false, "5 747 121", "102 082", "20,7%", 40, reasons);
     }
 }

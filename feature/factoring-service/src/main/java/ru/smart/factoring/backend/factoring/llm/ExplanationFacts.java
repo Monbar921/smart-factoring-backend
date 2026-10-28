@@ -17,7 +17,7 @@ import java.util.Locale;
  * Факты предложения для текстов LLM: без персональных данных (НФР-10), только то, что видит менеджер в карточке.
  */
 public record ExplanationFacts(String clientName, String buyerName, String buyerInn, String updNumber, String updDate,
-                               String riskLevel, String pd, boolean lowData, boolean delayProbable, boolean reducedToLimit,
+                               String riskLevel, String pd, String pdOutOf100, boolean lowData, boolean delayProbable, boolean reducedToLimit,
                                String ead, String price, String priceRate, int termDays, List<ModelClient.Reason> reasons) {
     private static final Locale RU = Locale.forLanguageTag("ru");
     private static final BigDecimal HUNDRED = new BigDecimal("100");
@@ -28,7 +28,8 @@ public record ExplanationFacts(String clientName, String buyerName, String buyer
         final Economics.Result economics = decision.finalEconomics();
         return new ExplanationFacts(decision.client().name(), buyerName, decision.state().upd().buyerInn(),
                 decision.state().upd().number(), decision.state().upd().updDate().format(DATE), decision.buyer().riskLevel().name(),
-                percent(decision.buyer().pd()), decision.buyer().lowData(), decision.delayProbable(), decision.reducedToLimit(),
+                percent(decision.buyer().pd()), outOf100(decision.buyer().pd()), decision.buyer().lowData(), decision.delayProbable(),
+                decision.reducedToLimit(),
                 money(economics.ead()), money(economics.price()), percent(economics.priceRate()), economics.termDays(),
                 decision.buyer().reasons() != null ? decision.buyer().reasons() : List.of());
     }
@@ -60,6 +61,20 @@ public record ExplanationFacts(String clientName, String buyerName, String buyer
     public String buyerTitle() {
         final boolean noName = buyerName == null || buyerName.isBlank() || buyerName.startsWith("ИНН ");
         return noName ? "ИНН " + buyerInn : buyerName + ", ИНН " + buyerInn;
+    }
+
+    /**
+     * Вероятность «из 100» для менеджера (замечания 28.10, П2-1): процент округляется до целого, меньше 1 % - «меньше 1 из 100».
+     */
+    static String outOf100(final BigDecimal probability) {
+        if (probability == null) {
+            return null;
+        }
+        final BigDecimal percent = probability.multiply(HUNDRED);
+        if (percent.compareTo(BigDecimal.ONE) < 0) {
+            return "меньше 1 из 100";
+        }
+        return "около " + percent.setScale(0, RoundingMode.HALF_UP).toPlainString() + " из 100";
     }
 
     static String money(final BigDecimal value) {

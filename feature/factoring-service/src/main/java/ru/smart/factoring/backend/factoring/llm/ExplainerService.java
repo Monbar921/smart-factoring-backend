@@ -41,6 +41,9 @@ public class ExplainerService implements Explainer {
      * когда меняется формат фактов или проверка ответов.
      */
     private static final String PROMPT_VERSION = "v3";
+    /** уровни риска словами - как в UI (замечания 28.10, П2-1) */
+    private static final Map<String, String> RISK_WORDS = Map.of("A", "надёжный покупатель", "B", "средний риск",
+            "C", "повышенный риск", "D", "высокий риск");
     private static final String RETRY_NOTE = """
 
 
@@ -145,8 +148,12 @@ public class ExplainerService implements Explainer {
     }
 
     static String templateReasons(final ExplanationFacts facts) {
-        final StringBuilder text = new StringBuilder("Покупатель ").append(facts.buyerTitle()).append(": уровень риска ")
-                .append(facts.riskLevel()).append(", вероятность дефолта за год ").append(facts.pd()).append('.');
+        // риск простым языком, без процента PD (замечания 28.10, П2-1.2): «B, средний риск. Около 2 из 100 …»
+        final StringBuilder text = new StringBuilder("Покупатель ").append(facts.buyerTitle()).append(": риск ")
+                .append(facts.riskLevel()).append(", ").append(RISK_WORDS.getOrDefault(facts.riskLevel(), facts.riskLevel())).append('.');
+        if (facts.pdOutOf100() != null) {
+            text.append(' ').append(riskOutOf100Sentence(facts.pdOutOf100()));
+        }
         if (facts.lowData()) {
             text.append(" Данных мало: оценка по отрасли и размеру компании.");
         }
@@ -175,6 +182,15 @@ public class ExplainerService implements Explainer {
                 + " от " + facts.updDate() + ") банк готов сразу выплатить " + facts.ead()
                 + " руб., не дожидаясь оплаты от покупателя. Срок - " + facts.termDays() + " дн., стоимость - " + facts.price()
                 + " руб. (" + facts.priceRate() + " годовых). Если интересно, оформим факторинг в ВТБ Факторинге: от вас нужно только согласие.";
+    }
+
+    /**
+     * «Около 2 из 100 таких компаний за год не смогут расплатиться по долгам» (одна компания - «не сможет»).
+     */
+    static String riskOutOf100Sentence(final String outOf100) {
+        final boolean one = outOf100.startsWith("меньше") || "около 1 из 100".equals(outOf100);
+        return Character.toUpperCase(outOf100.charAt(0)) + outOf100.substring(1) + " таких компаний за год "
+                + (one ? "не сможет" : "не смогут") + " расплатиться по долгам.";
     }
 
     private static String lower(final String title) {
