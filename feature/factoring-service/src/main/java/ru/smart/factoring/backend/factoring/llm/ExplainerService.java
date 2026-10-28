@@ -36,7 +36,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class ExplainerService implements Explainer {
-    /** входит в ключ кеша: новая версия промптов или фактов - тексты запрашиваются заново (v2 - Р-58) */
+    /**
+     * Версия в «версиях моделей» прогона и в ключе кеша. Тексты промптов входят в ключ кеша сами (Р-60), версию меняем,
+     * когда меняется формат фактов или проверка ответов.
+     */
     private static final String PROMPT_VERSION = "v3";
     private static final String RETRY_NOTE = """
 
@@ -79,7 +82,8 @@ public class ExplainerService implements Explainer {
         final ExplanationFacts facts = ExplanationFacts.of(decision, buyerName(decision.state().upd().buyerId()));
         return switch (mode()) {
             case "gigachat" -> {
-                final String hash = hash(provider() + "\n" + facts.describe());
+                // в ключе - и тексты промптов: правка llm/*.txt сама сбрасывает кеш, без ручной смены PROMPT_VERSION
+                final String hash = hash(provider() + "\n" + reasonsPrompt + "\n" + draftPrompt + "\n" + facts.describe());
                 final Texts cached = cached(hash);
                 if (cached != null) {
                     yield cached;

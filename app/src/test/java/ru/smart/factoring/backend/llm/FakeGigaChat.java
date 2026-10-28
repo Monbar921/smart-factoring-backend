@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -19,6 +20,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 final class FakeGigaChat {
     static final String REASONS = "Причины от GigaChat";
     static final String DRAFT = "Черновик от GigaChat";
+    /**
+     * Какой промпт пришёл - по началу его первой строки из тех же файлов, что читает backend: правка текста промптов
+     * не ломает заглушку (раньше она искала фразы, которых в новых промптах нет).
+     */
+    private static final int MARKER_LENGTH = 60;
+    private static final String REASONS_MARKER = marker("/llm/reasons-prompt.txt");
+    private static final String DRAFT_MARKER = marker("/llm/draft-prompt.txt");
 
     private final HttpServer server;
     final List<String> chatRequests = new CopyOnWriteArrayList<>();
@@ -43,9 +51,9 @@ final class FakeGigaChat {
                 return;
             }
             final String content;
-            if (body.contains("Объясни менеджеру")) {
+            if (body.contains(REASONS_MARKER)) {
                 content = REASONS;
-            } else if (body.contains("Напиши черновик")) {
+            } else if (body.contains(DRAFT_MARKER)) {
                 content = DRAFT;
             } else {
                 content = "Ответ на: " + body.length();
@@ -60,6 +68,18 @@ final class FakeGigaChat {
 
     String baseUrl() {
         return "http://127.0.0.1:" + server.getAddress().getPort();
+    }
+
+    private static String marker(final String resource) {
+        try (InputStream in = FakeGigaChat.class.getResourceAsStream(resource)) {
+            if (in == null) {
+                throw new IllegalStateException("Нет промпта " + resource);
+            }
+            final String firstLine = new String(in.readAllBytes(), StandardCharsets.UTF_8).strip().lines().findFirst().orElseThrow();
+            return firstLine.substring(0, Math.min(MARKER_LENGTH, firstLine.length()));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static void send(final HttpExchange exchange, final int status, final String body) throws IOException {
