@@ -10,6 +10,7 @@ import ru.smart.factoring.backend.factoring.load.RunScope;
 import ru.smart.factoring.backend.factoring.ml.ModelClient;
 import ru.smart.factoring.backend.factoring.ml.ModelProperties;
 import ru.smart.factoring.backend.factoring.model.ClientInfo;
+import ru.smart.factoring.backend.factoring.model.UpdNumber;
 import ru.smart.factoring.backend.factoring.model.UpdState;
 import ru.smart.factoring.backend.factoring.run.RunContext;
 import ru.smart.factoring.backend.factoring.run.RunLog;
@@ -250,7 +251,7 @@ public class ScoringStep implements RunStep {
                             : result != null && result.error() != null ? result.error() : "нет ответа модели задержки";
                     scores.put(updId, new ScoringResult.UpdScore(updId, ERROR, null, null, null, false, modelVersion,
                             response.attempts(), error));
-                    log.add(entry(runId, RunLog.Level.ERROR, "SCORING_ERROR", "Ошибка оценки УПД " + state.upd().number() + ": " + error,
+                    log.add(entry(runId, RunLog.Level.ERROR, "SCORING_ERROR", "Ошибка оценки " + UpdNumber.label(state.upd().number()) + ": " + error,
                             state));
                     continue;
                 }
@@ -259,7 +260,7 @@ public class ScoringStep implements RunStep {
                         result.expectedDelayDays(), noPairHistory && SCORED.equals(result.status()), modelVersion,
                         response.attempts(), null));
                 if (SCORED.equals(result.status()) && noPairHistory) {
-                    log.add(entry(runId, RunLog.Level.INFO, "NO_PAIR_HISTORY", "УПД " + state.upd().number()
+                    log.add(entry(runId, RunLog.Level.INFO, "NO_PAIR_HISTORY", UpdNumber.label(state.upd().number())
                             + ": нет истории пары, оценка по платёжной дисциплине покупателя (п. 4.5)", state));
                 }
             }

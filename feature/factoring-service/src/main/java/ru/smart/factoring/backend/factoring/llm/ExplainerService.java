@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import ru.smart.factoring.backend.factoring.decision.DecisionEngine;
 import ru.smart.factoring.backend.factoring.decision.Explainer;
+import ru.smart.factoring.backend.factoring.model.UpdNumber;
 import ru.smart.factoring.backend.factoring.decision.Explainer.Source;
 import ru.smart.factoring.backend.factoring.ml.ModelClient;
 
@@ -36,7 +37,13 @@ import java.util.stream.Collectors;
 @Service
 public class ExplainerService implements Explainer {
     /** входит в ключ кеша: новая версия промптов или фактов - тексты запрашиваются заново (v2 - Р-58) */
-    private static final String PROMPT_VERSION = "v2";
+    private static final String PROMPT_VERSION = "v3";
+    private static final String RETRY_NOTE = """
+
+
+            В прошлый раз ответ содержал сведения, которых нет во входе. Пиши строго по переданным фактам: никаких оценок
+            репутации, платёжеспособности, финансового состояния и кредитной истории, никаких обещаний сроков выплаты
+            и условий, которых нет во входе.""";
     private static final double TEMPERATURE = 0.2;
     private static final int MAX_TOKENS = 512;
     /** finish_reason GigaChat: ответ заменён шаблонной фразой из-за цензуры */
@@ -78,8 +85,14 @@ public class ExplainerService implements Explainer {
                     yield cached;
                 }
                 try {
-                    final Texts texts = Texts.of(complete(reasonsPrompt, facts.describe()), complete(draftPrompt, facts.describe()),
-                            Source.LLM);
+                    final String reasons = checked(reasonsPrompt, facts);
+                    final String draft = checked(draftPrompt, facts);
+                    if (reasons == null || draft == null) {
+                        // LLM дважды ответила с домыслами: такой текст менеджеру не показываем, вместо него - шаблон
+                        yield Texts.of(reasons != null ? reasons : templateReasons(facts), draft != null ? draft : templateDraft(facts),
+                                Source.TEMPLATE);
+                    }
+                    final Texts texts = Texts.of(reasons, draft, Source.LLM);
                     cache(hash, texts);
                     yield texts;
                 } catch (RuntimeException e) {
@@ -90,6 +103,26 @@ public class ExplainerService implements Explainer {
             case "off" -> Texts.of(templateReasons(facts), null, Source.TEMPLATE);
             default -> Texts.of(templateReasons(facts), templateDraft(facts), Source.TEMPLATE);
         };
+    }
+
+    /**
+     * Ответ LLM, проверенный на домыслы (Р-59): с домыслом - один повтор с напоминанием, снова с домыслом - null (будет шаблон).
+     */
+    private String checked(final String systemPrompt, final ExplanationFacts facts) {
+        final String input = facts.describe();
+        final String first = complete(systemPrompt, input);
+        final String found = FactCheck.unsupported(first, input);
+        if (found == null) {
+            return first;
+        }
+        log.info("Карточка {}: в ответе LLM домысел «{}…», запрос повторён", facts.updNumber(), found);
+        final String second = complete(systemPrompt + RETRY_NOTE, input);
+        final String again = FactCheck.unsupported(second, input);
+        if (again == null) {
+            return second;
+        }
+        log.warn("Карточка {}: в ответе LLM снова домысел «{}…» - текст шаблоном", facts.updNumber(), again);
+        return null;
     }
 
     private String complete(final String systemPrompt, final String facts) {
@@ -129,10 +162,10 @@ public class ExplainerService implements Explainer {
     }
 
     static String templateDraft(final ExplanationFacts facts) {
-        return "Добрый день! По отгрузке покупателю " + facts.buyerTitle() + " (УПД № " + facts.updNumber() + " от " + facts.updDate()
-                + ") банк готов сразу выплатить " + facts.ead() + " руб., не дожидаясь оплаты от покупателя. Срок - " + facts.termDays()
-                + " дн., стоимость - " + facts.price() + " руб. (" + facts.priceRate() + " годовых). Если интересно, оформим "
-                + "факторинг в ВТБ Факторинге: от вас нужно только согласие.";
+        return "Добрый день! По отгрузке покупателю " + facts.buyerTitle() + " (" + UpdNumber.labelWithNo(facts.updNumber())
+                + " от " + facts.updDate() + ") банк готов сразу выплатить " + facts.ead()
+                + " руб., не дожидаясь оплаты от покупателя. Срок - " + facts.termDays() + " дн., стоимость - " + facts.price()
+                + " руб. (" + facts.priceRate() + " годовых). Если интересно, оформим факторинг в ВТБ Факторинге: от вас нужно только согласие.";
     }
 
     private static String lower(final String title) {
