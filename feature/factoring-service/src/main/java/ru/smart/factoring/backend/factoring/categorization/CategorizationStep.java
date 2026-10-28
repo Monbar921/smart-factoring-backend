@@ -8,6 +8,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import ru.smart.factoring.backend.factoring.json.Json;
 import ru.smart.factoring.backend.factoring.load.RunScope;
 import ru.smart.factoring.backend.factoring.model.Categories;
+import ru.smart.factoring.backend.factoring.model.UpdNumber;
 import ru.smart.factoring.backend.factoring.model.UpdState;
 import ru.smart.factoring.backend.factoring.reconciliation.ReconciliationStep;
 import ru.smart.factoring.backend.factoring.run.RunContext;
@@ -95,9 +96,9 @@ public class CategorizationStep implements RunStep {
             payload.put("overdueDays", overdueDays);
             payload.put("category", state.category());
             notifications.add(notification(runId, managers.get(state.upd().clientId()), "OVERDUE", state, payload));
-            log.add(entry(runId, "OVERDUE_NOTIFICATION", "Просрочка оплаты по УПД " + state.upd().number() + ": остаток "
+            log.add(entry(runId, "OVERDUE_NOTIFICATION", "Просрочка оплаты по " + UpdNumber.label(state.upd().number()) + ": остаток "
                     + state.outstanding() + " руб., " + overdueDays + " дн. (п. 3.10 а)", state));
-            log.add(entry(runId, "CASH_GAP_SCENARIO", "УПД " + state.upd().number()
+            log.add(entry(runId, "CASH_GAP_SCENARIO", UpdNumber.label(state.upd().number())
                     + " передан в сценарий «закрытие кассового разрыва» (п. 3.10 б, имитация)", state));
         }
 

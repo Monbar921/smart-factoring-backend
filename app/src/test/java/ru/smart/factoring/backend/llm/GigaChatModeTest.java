@@ -63,7 +63,7 @@ class GigaChatModeTest extends AbstractSmartFactoringBackendTest {
         final JsonNode run = Fixture.run(Map.of());
 
         assertThat(run.get("status").asString()).isEqualTo("DONE");
-        assertThat(run.get("modelVersions").get("llm").asString()).isEqualTo("gigachat:GigaChat-2:v2");
+        assertThat(run.get("modelVersions").get("llm").asString()).isEqualTo("gigachat:GigaChat-2:v3");
         final int offers = Fixture.metrics(run, 5).get("offers").asInt();
         assertThat(offers).isEqualTo(12);
         assertThat(jdbcTemplate.queryForList("select distinct reasons_text from offer", String.class)).containsExactly(FakeGigaChat.REASONS);

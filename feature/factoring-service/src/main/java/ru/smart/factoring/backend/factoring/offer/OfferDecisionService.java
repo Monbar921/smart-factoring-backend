@@ -10,6 +10,7 @@ import ru.smart.factoring.backend.api.crm.OfferActionResultDto;
 import ru.smart.factoring.backend.api.crm.OfferDto;
 import ru.smart.factoring.backend.factoring.error.ApiException;
 import ru.smart.factoring.backend.factoring.json.Json;
+import ru.smart.factoring.backend.factoring.model.UpdNumber;
 import ru.smart.factoring.backend.factoring.run.RunLog;
 
 import java.util.LinkedHashMap;
@@ -57,7 +58,7 @@ public class OfferDecisionService {
         final Long packageId = jdbc.queryForObject("""
                         insert into imitation_factoring_package (offer_id, payload) values (:offerId, cast(:payload as jsonb)) returning id""",
                 new MapSqlParameterSource().addValue("offerId", offerId).addValue("payload", json.write(pack)), Long.class);
-        log(offer, "OFFER_TRANSFERRED", "Передано в факторинг: УПД " + offer.updNumber() + ", " + offer.ead() + " руб., пакет "
+        log(offer, "OFFER_TRANSFERRED", "Передано в факторинг: " + UpdNumber.label(offer.updNumber()) + ", " + offer.ead() + " руб., пакет "
                 + packageId + " в ВТБ Факторинг (имитация)", user, null);
         return new OfferActionResultDto(offers.byId(offerId).orElseThrow(), packageId);
     }
@@ -69,8 +70,8 @@ public class OfferDecisionService {
     public OfferActionResultDto reject(final long offerId, final String user, final String comment) {
         final OfferDto offer = lockQueued(offerId);
         decide(offerId, "REJECTED", user);
-        log(offer, "OFFER_REJECTED", "Отклонено: УПД " + offer.updNumber() + (comment != null && !comment.isBlank() ? ", " + comment : ""),
-                user, comment);
+        log(offer, "OFFER_REJECTED", "Отклонено: " + UpdNumber.label(offer.updNumber())
+                + (comment != null && !comment.isBlank() ? ", " + comment : ""), user, comment);
         return new OfferActionResultDto(offers.byId(offerId).orElseThrow(), null);
     }
 

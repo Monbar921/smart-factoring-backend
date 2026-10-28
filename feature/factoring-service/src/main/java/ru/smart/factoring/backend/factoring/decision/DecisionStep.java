@@ -9,6 +9,7 @@ import ru.smart.factoring.backend.factoring.categorization.CategorizationStep;
 import ru.smart.factoring.backend.factoring.load.RunDataRepository;
 import ru.smart.factoring.backend.factoring.load.RunScope;
 import ru.smart.factoring.backend.factoring.model.ClientInfo;
+import ru.smart.factoring.backend.factoring.model.UpdNumber;
 import ru.smart.factoring.backend.factoring.model.UpdState;
 import ru.smart.factoring.backend.factoring.run.RunContext;
 import ru.smart.factoring.backend.factoring.run.RunLog;
@@ -111,7 +112,7 @@ public class DecisionStep implements RunStep {
                         took.toMillis())));
         offers.stream().filter(offer -> offer.texts().source() == Explainer.Source.FAILED).forEach(offer -> log.add(RunLog.Entry.of(
                         context.getRunId(), RunLog.Level.WARN, STEP_NO, "LLM_ERROR",
-                        "Карточка УПД " + offer.decision().state().upd().number() + " без черновика: " + offer.texts().error())
+                        "Карточка " + UpdNumber.label(offer.decision().state().upd().number()) + " без черновика: " + offer.texts().error())
                 .client(offer.decision().state().upd().clientId())
                 .upd(offer.decision().state().upd().id())));
         runLog.write(log);

@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 import ru.smart.factoring.backend.factoring.json.Json;
+import ru.smart.factoring.backend.factoring.model.UpdNumber;
 import ru.smart.factoring.backend.factoring.model.UpdState;
 import ru.smart.factoring.backend.factoring.run.RunContext;
 import ru.smart.factoring.backend.factoring.run.RunLog;
@@ -54,7 +55,7 @@ public class OfferPublisher {
             final DecisionEngine.Decision decision = offer.decision();
             final long updId = decision.state().upd().id();
             if (decided.contains(updId)) {
-                log.add(entry(runId, "SKIPPED_DECIDED", "УПД " + decision.state().upd().number()
+                log.add(entry(runId, "SKIPPED_DECIDED", UpdNumber.label(decision.state().upd().number())
                         + ": решение менеджера принято во время прогона, в очередь не попадает (ПР-8)", decision));
                 continue;
             }
