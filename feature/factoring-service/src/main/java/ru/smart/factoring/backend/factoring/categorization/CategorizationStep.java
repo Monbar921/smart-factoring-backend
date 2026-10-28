@@ -14,6 +14,7 @@ import ru.smart.factoring.backend.factoring.reconciliation.ReconciliationStep;
 import ru.smart.factoring.backend.factoring.run.RunContext;
 import ru.smart.factoring.backend.factoring.run.RunLog;
 import ru.smart.factoring.backend.factoring.run.RunStep;
+import ru.smart.factoring.backend.factoring.run.LogText;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -97,7 +98,7 @@ public class CategorizationStep implements RunStep {
             payload.put("category", state.category());
             notifications.add(notification(runId, managers.get(state.upd().clientId()), "OVERDUE", state, payload));
             log.add(entry(runId, "OVERDUE_NOTIFICATION", "Просрочка оплаты по " + UpdNumber.label(state.upd().number()) + ": остаток "
-                    + state.outstanding() + " руб., " + overdueDays + " дн. (п. 3.10 а)", state));
+                    + LogText.money(state.outstanding()) + ", " + overdueDays + " дн. (п. 3.10 а)", state));
             log.add(entry(runId, "CASH_GAP_SCENARIO", UpdNumber.label(state.upd().number())
                     + " передан в сценарий «закрытие кассового разрыва» (п. 3.10 б, имитация)", state));
         }

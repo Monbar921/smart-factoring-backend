@@ -12,6 +12,7 @@ import ru.smart.factoring.backend.factoring.error.ApiException;
 import ru.smart.factoring.backend.factoring.json.Json;
 import ru.smart.factoring.backend.factoring.model.UpdNumber;
 import ru.smart.factoring.backend.factoring.run.RunLog;
+import ru.smart.factoring.backend.factoring.run.LogText;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -58,7 +59,7 @@ public class OfferDecisionService {
         final Long packageId = jdbc.queryForObject("""
                         insert into imitation_factoring_package (offer_id, payload) values (:offerId, cast(:payload as jsonb)) returning id""",
                 new MapSqlParameterSource().addValue("offerId", offerId).addValue("payload", json.write(pack)), Long.class);
-        log(offer, "OFFER_TRANSFERRED", "Передано в факторинг: " + UpdNumber.label(offer.updNumber()) + ", " + offer.ead() + " руб., пакет "
+        log(offer, "OFFER_TRANSFERRED", "Передано в факторинг: " + UpdNumber.label(offer.updNumber()) + ", " + LogText.money(offer.ead()) + ", пакет "
                 + packageId + " в ВТБ Факторинг (имитация)", user, null);
         return new OfferActionResultDto(offers.byId(offerId).orElseThrow(), packageId);
     }

@@ -71,6 +71,10 @@ class RunApiTest extends AbstractSmartFactoringBackendTest {
         final JsonNode log = Api.get("/runs/" + runId + "/log").body();
         assertThat(log.get("items")).extracting(entry -> entry.get("eventCode").asString())
                 .contains("RUN_STARTED", "RUN_FINISHED");
+        // тексты журнала - для человека: дата ДД.ММ.ГГГГ, статус по-русски
+        assertThat(log.get("items")).extracting(entry -> entry.get("message").asString())
+                .contains("Прогон запущен, дата расчёта 24.10.2026")
+                .anySatisfy(message -> assertThat(message).startsWith("Прогон завершён: выполнен, "));
     }
 
     @Test

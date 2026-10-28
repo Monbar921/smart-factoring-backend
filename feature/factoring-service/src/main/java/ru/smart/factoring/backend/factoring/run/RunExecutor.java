@@ -37,7 +37,7 @@ public class RunExecutor {
     public void execute(final RunContext context) {
         final long runId = context.getRunId();
         final long started = System.nanoTime();
-        runLog.info(runId, null, "RUN_STARTED", "Прогон запущен, дата расчёта " + context.getCalcDate());
+        runLog.info(runId, null, "RUN_STARTED", "Прогон запущен, дата расчёта " + LogText.date(context.getCalcDate()));
         context.onProgress((stepNo, snapshot) -> saveProgress(runId, stepNo, snapshot));
         for (final RunStep step : steps) {
             runRepository.stepStarted(runId, step.stepNo());
@@ -62,7 +62,7 @@ public class RunExecutor {
         final RunStatus status = context.hasWarnings() ? RunStatus.DONE_WITH_WARNINGS : RunStatus.DONE;
         runRepository.finish(runId, status, json.write(context.getSummary()), json.write(context.getModelVersions()), null);
         final Duration duration = Duration.ofNanos(System.nanoTime() - started);
-        runLog.info(runId, null, "RUN_FINISHED", "Прогон завершён: " + status + ", " + duration.toMillis() + " мс");
+        runLog.info(runId, null, "RUN_FINISHED", "Прогон завершён: " + LogText.status(status) + ", " + LogText.duration(duration));
         if (duration.toMinutes() >= context.getParameters().maxDurationMinutes()) {
             runLog.warn(runId, null, "RUN_TOO_LONG", "Прогон дольше " + context.getParameters().maxDurationMinutes() + " минут (НФР-1.1)");
         }
