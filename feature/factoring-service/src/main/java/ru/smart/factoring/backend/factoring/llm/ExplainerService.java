@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 @Service
 public class ExplainerService implements Explainer {
     /** входит в ключ кеша: новая версия промптов или фактов - тексты запрашиваются заново (v2 - Р-58) */
-    private static final String PROMPT_VERSION = "v3";
+    private static final String PROMPT_VERSION = "v4";
     private static final double TEMPERATURE = 0.2;
     private static final int MAX_TOKENS = 512;
     /** finish_reason GigaChat: ответ заменён шаблонной фразой из-за цензуры */
