@@ -167,10 +167,13 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
   "client": { "id": 1, "name": "..." }, "buyer": { "id": 1, "inn": "...", "name": "..." },
   "ead": 4500000.00, "price": 102082.00, "priceRate": 0.2070, "termDays": 40, "riskLevel": "A", "pd": 0.005,
   "income": 14795.00, "el": 360.00, "tr": 0.105, "rank": 1553.00,
-  "flags": { "delayProbable": false, "lowData": false, "reducedToLimit": false, "isNew": true },
+  "flags": { "delayProbable": false, "lowData": false, "reducedToLimit": false, "isNew": true, "lowDataReason": null },
   "reasonsText": "…", "messageDraft": "…", "queuedAt": "...", "lastRunId": 13, "textSource": "LLM"
 } ]
 ```
+
+`flags.lowDataReason` (Р-66) — причина «мало данных» по оценке последнего прогона: `NO_RECENT_REPORT`, `LOW_REVENUE`,
+`YOUNG_COMPANY`, `EXCLUDED_INDUSTRY`; null — данных хватает или причина неизвестна.
 
 `textSource` (Р-58) — откуда тексты карточки: `LLM` (ответ LLM в этом прогоне), `CACHE` (ответ LLM из кеша),
 `TEMPLATE` (шаблон, LLM выключена), `FAILED` (LLM не ответила: причины шаблоном, без черновика); null — предложение

@@ -152,11 +152,12 @@ public class LoadStep implements RunStep {
                         is_core = excluded.is_core, manager_id = excluded.manager_id, edo_consent = excluded.edo_consent,
                         factoring_client = excluded.factoring_client, loaded_at = now()""".formatted(ELIGIBLE), none);
         jdbc.update("""
-                insert into buyer (inn, ogrn, name, okved, okved_section, region, registration_date)
-                select inn, ogrn, name, okved, okved_section, region, registration_date from manual_upload_buyer
+                insert into buyer (inn, ogrn, name, okved, okved_section, region, registration_date, low_data_reason)
+                select inn, ogrn, name, okved, okved_section, region, registration_date, low_data_reason from manual_upload_buyer
                 on conflict (inn) do update
                     set ogrn = excluded.ogrn, name = excluded.name, okved = excluded.okved, okved_section = excluded.okved_section,
-                        region = excluded.region, registration_date = excluded.registration_date, loaded_at = now()""", none);
+                        region = excluded.region, registration_date = excluded.registration_date,
+                        low_data_reason = excluded.low_data_reason, loaded_at = now()""", none);
         jdbc.update("""
                 insert into buyer_financials (buyer_id, year, simplified, assets_total, current_assets, receivables, cash, equity,
                     long_term_borrowings, short_term_liabilities, short_term_borrowings, payables, revenue, cost_of_sales,

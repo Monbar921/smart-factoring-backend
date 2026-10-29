@@ -98,6 +98,10 @@ class DeliveryBatchImportTest extends AbstractSmartFactoringBackendTest {
                 .isEqualTo("ликвидация");
         // готовый PD - у покупателей с отчётностью, у «мало данных» его нет
         assertThat(count("manual_upload_buyer where pd is not null and pd_model_version = 'pd-1.0'")).isEqualTo(16);
+        // П3-5.1: причина «мало данных» партии - кодом продукта
+        assertThat(jdbcTemplate.queryForList("select inn || ' ' || low_data_reason from manual_upload_buyer"
+                + " where low_data_reason is not null order by inn", String.class))
+                .containsExactly("3906282590 NO_RECENT_REPORT", "5074086259 YOUNG_COMPANY");
     }
 
     @Test
@@ -154,6 +158,11 @@ class DeliveryBatchImportTest extends AbstractSmartFactoringBackendTest {
                 .toList();
         assertThat(levels).isNotEmpty().allSatisfy(row -> assertThat(row.get("risk_level")).as((String) row.get("inn"))
                 .isEqualTo(expected.get((String) row.get("inn"))));
+        // П3-5: причина «мало данных» из партии доходит до оценки покупателя (оцениваются покупатели с открытыми УПД)
+        assertThat(jdbcTemplate.queryForList("""
+                select b.inn || ' ' || s.low_data_reason from buyer_score s join buyer b on b.id = s.buyer_id
+                where s.low_data order by b.inn""", String.class))
+                .contains("3906282590 NO_RECENT_REPORT").doesNotContain("5074086259 NO_RECENT_REPORT");
     }
 
     @Test

@@ -80,7 +80,8 @@ class ScoringTest extends AbstractSmartFactoringBackendTest {
         Fixture.run(Map.of());
         final JsonNode second = Fixture.run(Map.of());
 
-        assertThat(Fixture.metrics(second, 4).get("pdFromCache").asInt()).isEqualTo(7);
+        // базовый PD «мало данных» не кешируется (Р-66): он зависит от причины из источника, а не от отчётности
+        assertThat(Fixture.metrics(second, 4).get("pdFromCache").asInt()).isEqualTo(6);
     }
 
     private String buyer(final long runId, final String inn) {

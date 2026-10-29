@@ -46,6 +46,9 @@ final class DeliveryBatch {
             "торговля", "TRADE", "производство", "MANUFACTURING", "профессиональные_услуги", "PROFESSIONAL",
             "строительство", "CONSTRUCTION");
     private static final String ACTIVE = "действует";
+    /** причина «мало данных» партии - в коды сервиса моделей (П3-5.1); неизвестная остаётся как есть и не пройдёт проверку */
+    private static final Map<String, String> LOW_DATA_REASONS = Map.of(
+            "нет_отчётности", "NO_RECENT_REPORT", "выручка_ниже_порога", "LOW_REVENUE", "возраст_до_года", "YOUNG_COMPANY");
     private static final String NO_CASE_NUMBER = "б/н";
     private static final String FIRST_STAGE = "Наблюдение";
     private static final List<String> CASE_COLUMNS = List.of("court", "applicant", "start_date_source", "observation_from",
@@ -116,12 +119,17 @@ final class DeliveryBatch {
             snapshot = max(snapshot, snapshotDate);
             final Integer age = v.integer(BUYERS, row, "age_years", false);
             final BigDecimal pd = v.decimal(BUYERS, row, "pd", false);
+            final String reason = row.get("low_data_reason");
+            if (reason != null && !LOW_DATA_REASONS.containsKey(reason)) {
+                v.error(BUYERS, row.line(), "low_data_reason: ожидается одно из " + LOW_DATA_REASONS.keySet() + ": " + reason);
+            }
             final String inn = row.get("buyer_inn");
             buyerRows.add(row(row, "inn", inn, "name", row.get("buyer_name") != null ? row.get("buyer_name") : "ИНН " + inn,
                     "okved_section", row.get("okved_section"), "region", row.get("region"),
                     "registration_date", age != null && snapshotDate != null ? snapshotDate.minusYears(age).toString() : null,
                     "data_date", row.get("snapshot_date"),
-                    "pd", row.get("pd"), "pd_model_version", pd != null ? pdVersion : null));
+                    "pd", row.get("pd"), "pd_model_version", pd != null ? pdVersion : null,
+                    "low_data_reason", reason != null ? LOW_DATA_REASONS.get(reason) : null));
         }
 
         final Map<String, String> contractNumber = new HashMap<>();

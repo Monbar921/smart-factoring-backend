@@ -108,6 +108,10 @@ public class StubModelClient implements ModelClient {
      * Базовый PD (п. 4.2): нет отчётности за прошлый год, выручка ниже порога модели или компания моложе года.
      */
     private static String lowDataReason(final Buyer buyer, final LocalDate calcDate) {
+        // причина из источника важнее вычисленной - как в сервисе моделей
+        if (buyer.lowDataReason() != null) {
+            return buyer.lowDataReason();
+        }
         final Financials last = lastYear(buyer, calcDate);
         if (last == null) {
             return "NO_RECENT_REPORT";

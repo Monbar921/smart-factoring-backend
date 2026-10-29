@@ -2,6 +2,7 @@ package ru.smart.factoring.backend.factoring.decision;
 
 import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.Test;
+import ru.smart.factoring.backend.api.common.RiskLevel;
 import ru.smart.factoring.backend.factoring.model.ClientInfo;
 import ru.smart.factoring.backend.factoring.model.Upd;
 import ru.smart.factoring.backend.factoring.model.UpdState;
@@ -28,12 +29,14 @@ class DecisionEngineTest {
 
     @Test
     void dividesBuyerLimitByRankLikeBrdExample() {
-        // покупатель B, лимит 20 млн, передано 6 млн → остаток 14 млн; срок 40 + 6 = 46 дней
+        // покупатель B, лимит 20 млн, передано 6 млн → остаток 14 млн; срок 40 + 6 = 46 дней.
+        // В примере BRD п. 5.1 у PD 3% уровень B - по правилу границ это уже C (Р-65), пример ошибочный; для проверки
+        // деления лимита уровень B задан явно, числа примера сохраняются
         final List<DecisionEngine.Candidate> candidates = List.of(
-                candidate(1, client(1, "0.30"), "9411764.71", 40, buyer("0.03"), score("0.10", "0.01", 6)),
-                candidate(2, client(2, "0.10"), "5000000.00", 40, buyer("0.03"), score("0.10", "0.01", 6)),
-                candidate(3, client(3, "0.30"), "5882352.94", 40, buyer("0.03"), score("0.10", "0.01", 6)),
-                candidate(4, client(4, "0.30"), "3529411.76", 40, buyer("0.03"), score("0.10", "0.01", 6)));
+                candidate(1, client(1, "0.30"), "9411764.71", 40, buyer("0.03", RiskLevel.B), score("0.10", "0.01", 6)),
+                candidate(2, client(2, "0.10"), "5000000.00", 40, buyer("0.03", RiskLevel.B), score("0.10", "0.01", 6)),
+                candidate(3, client(3, "0.30"), "5882352.94", 40, buyer("0.03", RiskLevel.B), score("0.10", "0.01", 6)),
+                candidate(4, client(4, "0.30"), "3529411.76", 40, buyer("0.03", RiskLevel.B), score("0.10", "0.01", 6)));
 
         final Map<Long, DecisionEngine.Decision> decisions = byUpd(DecisionEngine.decide(candidates,
                 Map.of(BUYER, new BigDecimal("14000000")), PARAMETERS));
@@ -157,8 +160,11 @@ class DecisionEngineTest {
     }
 
     private static ScoringResult.BuyerScore buyer(final String pd) {
-        final BigDecimal value = new BigDecimal(pd);
-        return new ScoringResult.BuyerScore(BUYER, "7720000002", null, true, value, "MODEL", false, PARAMETERS.riskLevel(value),
+        return buyer(pd, PARAMETERS.riskLevel(new BigDecimal(pd)));
+    }
+
+    private static ScoringResult.BuyerScore buyer(final String pd, final RiskLevel level) {
+        return new ScoringResult.BuyerScore(BUYER, "7720000002", null, true, new BigDecimal(pd), "MODEL", false, null, level,
                 List.of(), "v", CALC, false, null);
     }
 

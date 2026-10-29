@@ -27,8 +27,12 @@ public interface ModelClient {
                       BigDecimal salesProfit, BigDecimal interestPayable, BigDecimal netProfit) {
     }
 
+    /**
+     * @param lowDataReason причина нехватки данных, если её знает источник (партии ML-команды: low_data_reason в buyers.csv):
+     *                      NO_RECENT_REPORT, LOW_REVENUE, YOUNG_COMPANY; вместе с разделом ОКВЭД задаёт базовый PD (П3-5)
+     */
     record Buyer(String inn, String okved, String okvedSection, String region, LocalDate registrationDate,
-                 List<Financials> financials) {
+                 List<Financials> financials, String lowDataReason) {
     }
 
     record PdRequest(LocalDate calcDate, List<Buyer> buyers) {

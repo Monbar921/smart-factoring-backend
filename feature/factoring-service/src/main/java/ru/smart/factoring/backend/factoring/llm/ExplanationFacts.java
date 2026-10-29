@@ -17,7 +17,8 @@ import java.util.Locale;
  * Факты предложения для текстов LLM: без персональных данных (НФР-10), только то, что видит менеджер в карточке.
  */
 public record ExplanationFacts(String clientName, String buyerName, String buyerInn, String updNumber, String updDate,
-                               String riskLevel, String pd, String pdOutOf100, boolean lowData, boolean delayProbable, boolean reducedToLimit,
+                               String riskLevel, String pd, String pdOutOf100, boolean lowData, String lowDataReason,
+                               boolean delayProbable, boolean reducedToLimit,
                                String ead, String price, String priceRate, int termDays, List<ModelClient.Reason> reasons) {
     private static final Locale RU = Locale.forLanguageTag("ru");
     private static final BigDecimal HUNDRED = new BigDecimal("100");
@@ -28,7 +29,8 @@ public record ExplanationFacts(String clientName, String buyerName, String buyer
         final Economics.Result economics = decision.finalEconomics();
         return new ExplanationFacts(decision.client().name(), buyerName, decision.state().upd().buyerInn(),
                 decision.state().upd().number(), decision.state().upd().updDate().format(DATE), decision.buyer().riskLevel().name(),
-                percent(decision.buyer().pd()), outOf100(decision.buyer().pd()), decision.buyer().lowData(), decision.delayProbable(),
+                percent(decision.buyer().pd()), outOf100(decision.buyer().pd()), decision.buyer().lowData(), decision.buyer().lowDataReason(),
+                decision.delayProbable(),
                 decision.reducedToLimit(),
                 money(economics.ead()), money(economics.price()), percent(economics.priceRate()), economics.termDays(),
                 decision.buyer().reasons() != null ? decision.buyer().reasons() : List.of());
@@ -43,7 +45,8 @@ public record ExplanationFacts(String clientName, String buyerName, String buyer
                 .append("Покупатель: ").append(buyerTitle()).append('\n')
                 .append("УПД: ").append(UpdNumber.withNo(updNumber)).append(" от ").append(updDate).append('\n')
                 .append("Уровень риска покупателя: ").append(riskLevel).append(", PD ").append(pd)
-                .append(lowData ? " (мало данных: базовый PD по отрасли и размеру)" : "").append('\n')
+                .append(lowData ? " (мало данных: базовый PD по отрасли и причине нехватки данных"
+                        + (lowDataReason != null ? " - " + lowDataReasonText(lowDataReason) : "") + ")" : "").append('\n')
                 .append("Сумма финансирования: ").append(ead).append(" руб.")
                 .append(reducedToLimit ? " (уменьшена до остатка лимита на покупателя)" : "").append('\n')
                 .append("Цена: ").append(price).append(" руб., ").append(priceRate).append(" годовых, срок ").append(termDays)
@@ -75,6 +78,19 @@ public record ExplanationFacts(String clientName, String buyerName, String buyer
             return "меньше 1 из 100";
         }
         return "около " + percent.setScale(0, RoundingMode.HALF_UP).toPlainString() + " из 100";
+    }
+
+    /**
+     * Причина «мало данных» словами (П3-5.1).
+     */
+    public static String lowDataReasonText(final String reason) {
+        return switch (reason) {
+            case "NO_RECENT_REPORT" -> "нет отчётности за последний год";
+            case "LOW_REVENUE" -> "выручка ниже 120 млн ₽";
+            case "YOUNG_COMPANY" -> "компания моложе года";
+            case "EXCLUDED_INDUSTRY" -> "отрасль, по которой модель не обучена";
+            default -> reason;
+        };
     }
 
     static String money(final BigDecimal value) {

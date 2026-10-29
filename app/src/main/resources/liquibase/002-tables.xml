@@ -761,4 +761,18 @@
         </sql>
     </changeSet>
 
+    <!--
+        Р-66: причина «мало данных» из источника (low_data_reason в buyers.csv партии ML-команды): вместе с разделом ОКВЭД
+        задаёт базовый PD в сервисе моделей и показывается менеджеру в пометке «мало данных» (замечания 29.10, П3-5)
+    -->
+    <changeSet id="SMF-33-low-data-reason" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".manual_upload_buyer add column low_data_reason varchar(32);
+            alter table "${schema}".buyer add column low_data_reason varchar(32);
+            alter table "${schema}".buyer_score add column low_data_reason varchar(32);
+            comment on column "${schema}".buyer.low_data_reason is 'Причина «мало данных» из источника: NO_RECENT_REPORT, LOW_REVENUE, YOUNG_COMPANY (Р-66)';
+            comment on column "${schema}".buyer_score.low_data_reason is 'Причина «мало данных» по ответу сервиса моделей (Р-66)';
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>
