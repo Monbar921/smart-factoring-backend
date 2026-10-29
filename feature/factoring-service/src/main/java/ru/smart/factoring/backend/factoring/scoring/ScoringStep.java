@@ -184,7 +184,7 @@ public class ScoringStep implements RunStep {
                 .forEach(score -> {
                     if (score.lowData()) {
                         log.add(RunLog.Entry.of(runId, RunLog.Level.INFO, STEP_NO, "LOW_DATA",
-                                "Покупатель ИНН " + score.inn() + ": базовый PD по отрасли и размеру, «мало данных» (п. 4.2)")
+                                "Покупатель ИНН " + score.inn() + ": базовый PD по отрасли и причине нехватки данных, «мало данных» (п. 4.2)")
                                 .buyer(score.buyerId()));
                     }
                     if (!score.hasPaymentHistory()) {
