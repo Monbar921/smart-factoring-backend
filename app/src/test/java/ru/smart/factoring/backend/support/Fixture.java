@@ -18,6 +18,7 @@ public final class Fixture {
 
     public static void importFixture(final JdbcTemplate jdbcTemplate) {
         TestDatabase.clean(jdbcTemplate);
+        TestDatabase.useFixtureRiskBounds(jdbcTemplate);
         final Api.Response response = Api.post("/manual-upload", Map.of("path", PATH));
         if (response.status() != 200) {
             throw new AssertionError("Импорт фикстуры: " + response.status() + " " + response.body());

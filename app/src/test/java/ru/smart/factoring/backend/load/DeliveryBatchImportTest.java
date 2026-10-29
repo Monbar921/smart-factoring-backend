@@ -23,6 +23,8 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -41,6 +43,8 @@ class DeliveryBatchImportTest extends AbstractSmartFactoringBackendTest {
     private static final Path FIXTURE = Path.of("src/test/resources/manual-upload", PATH);
     private static final Path INDEX_SET = Path.of("src/test/resources/manual-upload/delivery-index-v1");
     private static final String NO_DATA_BUYER = "7327050690";
+    /** колонка risk_level в buyers.csv партии */
+    private static final int RISK_LEVEL_COLUMN = 15;
     private static final String BANKRUPT_BUYER = "2624000870";
     private static final String LIQUIDATED_BUYER = "7722478720";
 
@@ -132,6 +136,24 @@ class DeliveryBatchImportTest extends AbstractSmartFactoringBackendTest {
                 order by b.inn limit 1""");
         assertThat(scored.get("from_cache")).isEqualTo(true);
         assertThat((BigDecimal) scored.get("pd")).isEqualByComparingTo((BigDecimal) scored.get("batch_pd"));
+
+        // Р-65: уровень риска каждого покупателя с PD - как risk_level в buyers.csv партии (границы модели 0,4/1,5/6 %)
+        final Map<String, String> expected = new HashMap<>();
+        final List<String> lines = Files.readAllLines(FIXTURE.resolve("buyers.csv"), StandardCharsets.UTF_8);
+        for (final String line : lines.subList(1, lines.size())) {
+            final String[] columns = line.split(",", -1);
+            if (!columns[RISK_LEVEL_COLUMN].isEmpty()) {
+                expected.put(columns[0], columns[RISK_LEVEL_COLUMN]);
+            }
+        }
+        // покупатели «мало данных» в партии без уровня - у них базовый PD модели, сравниваются только те, у кого уровень есть
+        final List<Map<String, Object>> levels = jdbcTemplate.queryForList("""
+                        select b.inn, s.risk_level from buyer_score s join buyer b on b.id = s.buyer_id
+                        where s.risk_level is not null""").stream()
+                .filter(row -> expected.containsKey((String) row.get("inn")))
+                .toList();
+        assertThat(levels).isNotEmpty().allSatisfy(row -> assertThat(row.get("risk_level")).as((String) row.get("inn"))
+                .isEqualTo(expected.get((String) row.get("inn"))));
     }
 
     @Test
