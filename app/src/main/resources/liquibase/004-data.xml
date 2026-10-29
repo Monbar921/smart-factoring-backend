@@ -52,4 +52,18 @@
         </sql>
     </changeSet>
 
+    <!--
+        Р-65: границы уровней риска - как у модели PD (A до 0,4 %, B до 1,5 %, C до 6 %, выше - D), а не условные 1/3/8 %
+        из первой версии: с ними уровни на стенде расходились с risk_level тестовых данных ML-команды (3 из 5 замечаний
+        проверки 29.10). Меняется только значение по умолчанию - если параметр правили вручную, он остаётся.
+    -->
+    <changeSet id="SMF-33-risk-level-bounds-model" author="Monbar921">
+        <sql endDelimiter=";">
+            update "${schema}".parameter
+            set value = '{"A": 0.004, "B": 0.015, "C": 0.06}',
+                description = 'Верхние границы PD уровней A-C, выше C - уровень D (Р-65: границы модели PD)'
+            where code = 'scoring.risk_level_bounds' and value = '{"A": 0.01, "B": 0.03, "C": 0.08}';
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

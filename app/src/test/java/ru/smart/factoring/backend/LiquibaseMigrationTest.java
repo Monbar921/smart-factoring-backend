@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import ru.smart.factoring.backend.support.TestDatabase;
 
 import java.util.List;
 
@@ -60,6 +61,14 @@ class LiquibaseMigrationTest extends AbstractSmartFactoringBackendTest {
                 .isEqualTo("3");
         assertThat(jdbcTemplate.queryForObject("select count(*) from parameter where value_type = 'JSON' and value::jsonb is null",
                 Integer.class)).isZero();
+    }
+
+    @Test
+    void riskLevelBoundsAreModelBounds() {
+        // Р-65: A до 0,4 %, B до 1,5 %, C до 6 %, выше - D (как risk_level в данных ML-команды)
+        TestDatabase.clean(jdbcTemplate);
+        assertThat(jdbcTemplate.queryForObject("select value from parameter where code = 'scoring.risk_level_bounds'", String.class))
+                .isEqualTo("{\"A\": 0.004, \"B\": 0.015, \"C\": 0.06}");
     }
 
     @Test
