@@ -60,7 +60,8 @@
 
 ### `buyers.csv` → `manual_upload_buyer`, ключ `inn` — реестр покупателей
 
-`inn`, `name` — обязательны; `ogrn`, `okved`, `okved_section`, `region`, `registration_date`, `data_date` — нет.
+`inn`, `name` — обязательны; `ogrn`, `okved`, `okved_section`, `region`, `registration_date`, `data_date`,
+`low_data_reason` (`NO_RECENT_REPORT`, `LOW_REVENUE`, `YOUNG_COMPANY` — причина «мало данных», Р-66) — нет.
 Покупатель из УПД, которого нет в реестре, получает «нет данных по покупателю» (п. 1.4, К-17) — такие ИНН
 в реестр **не** включать.
 
@@ -201,13 +202,13 @@ delivery/              ← папка в архиве необязательна
 | `manifest.json`: `D_end`, `batch_id`, `generator_version`, `seed`, `pd_model_version` | `manual_upload_batch` (вид `DELIVERY`) | `D_end` — дата данных (= последней дате УПД и платежей); `source_name` — `batch_id generator_version` |
 | `clients.csv`: `client_id`, `client_inn`, `client_name`, `industry`, `region`, `abs_liquidity`, `receivable_days`, `core`, `manager_id`, `edo_consent` | `manual_upload_client` | `client_id` — только для связей; отрасль `торговля / производство / профессиональные_услуги / строительство` → `TRADE / MANUFACTURING / PROFESSIONAL / CONSTRUCTION`; `1/0` → да/нет; `receivable_days` округляется до дней; `factoring_client` — нет |
 | `manager_id` клиентов | `manual_upload_manager` | менеджеры достраиваются: код `MG-010`, имя «Менеджер MG-010» |
-| `buyers.csv`: `buyer_inn`, `snapshot_date`, `okved_section`, `region`, `age_years`, `pd` | `manual_upload_buyer` | наименования нет — «ИНН …»; дата регистрации — `snapshot_date` минус `age_years`; `pd` — с версией `pd_model_version` (ниже) |
+| `buyers.csv`: `buyer_inn`, `buyer_name`, `snapshot_date`, `okved_section`, `region`, `age_years`, `pd`, `low_data_reason` | `manual_upload_buyer` | без наименования — «ИНН …»; дата регистрации — `snapshot_date` минус `age_years`; `pd` — с версией `pd_model_version` (ниже); `low_data_reason` → `NO_RECENT_REPORT` / `LOW_REVENUE` / `YOUNG_COMPANY` (Р-66) |
 | `buyers_status.csv`: `egrul_status`, `bankruptcy_efrsb`, `event_date` | `manual_upload_egrul_status`, `manual_upload_bankruptcy_case` | статус ЕГРЮЛ как есть (`ликвидация`, `исключение` — стоп-факторы), дата статуса — `event_date`; `bankruptcy_efrsb = 1` — незакрытое дело «б/н» на стадии «Наблюдение» с `event_date` (стоп-фактор «банкротство») |
 | `contracts.csv`: `contract_id`, `contract_number`, `client_id`, `buyer_inn`, `contract_date`, `deferral_days` | `manual_upload_contract` | `client_id` → ИНН клиента |
 | `upd.csv`: `upd_number`, `upd_date`, `client_id`, `buyer_inn`, `contract_id`, `amount_rub` | `manual_upload_upd` | `contract_id` → номер договора; `plan_pay_date` не нужен — срок оплаты считается по отсрочке договора (в партиях совпадает) |
 | `payments.csv`: `payment_id`, `pay_date`, `client_id`, `buyer_inn`, `amount_rub`, `purpose` | `manual_upload_payment` | `payment_id` → `source_id`, `buyer_inn` → плательщик |
 
-Не используются: `delay_scores.csv` (эталон модели задержки для сверки), `category`, `stop_type`, `low_data_reason`,
+Не используются: `delay_scores.csv` (эталон модели задержки для сверки), `category`, `stop_type`,
 `risk_level` и показатели покупателя из `buyers.csv` — категории, стоп-факторы и уровни продукт определяет сам.
 
 **PD.** Отчётности покупателей в партии нет, поэтому модель PD по ним считать нечем — по каждому покупателю был бы

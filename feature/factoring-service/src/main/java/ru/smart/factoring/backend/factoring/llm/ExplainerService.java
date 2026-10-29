@@ -155,7 +155,9 @@ public class ExplainerService implements Explainer {
             text.append(' ').append(riskOutOf100Sentence(facts.pdOutOf100()));
         }
         if (facts.lowData()) {
-            text.append(" Данных мало: оценка по отрасли и размеру компании.");
+            text.append(" Данных мало")
+                    .append(facts.lowDataReason() != null ? " (" + ExplanationFacts.lowDataReasonText(facts.lowDataReason()) + ")" : "")
+                    .append(": оценка ориентировочная, по отрасли и причине нехватки данных.");
         }
         final List<ModelClient.Reason> reasons = facts.reasons();
         if (reasons.isEmpty()) {

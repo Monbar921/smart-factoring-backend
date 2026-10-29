@@ -29,7 +29,7 @@ public class OfferQueries {
     };
     private static final String SELECT = """
             select o.*, u.number as upd_number, u.upd_date, c.inn as client_inn, c.name as client_name,
-                   b.inn as buyer_inn, b.name as buyer_name, d.tr, s.p_delay, s.delay_threshold_days,
+                   b.inn as buyer_inn, b.name as buyer_name, d.tr, s.p_delay, s.delay_threshold_days, bs.low_data_reason,
                    (select us.outstanding from upd_state us where us.run_id = o.last_run_id and us.upd_id = o.upd_id) as upd_outstanding
             from offer o
             join upd u on u.id = o.upd_id
@@ -37,6 +37,7 @@ public class OfferQueries {
             join buyer b on b.id = o.buyer_id
             left join upd_decision d on d.run_id = o.last_run_id and d.upd_id = o.upd_id
             left join upd_score s on s.run_id = o.last_run_id and s.upd_id = o.upd_id
+            left join buyer_score bs on bs.run_id = o.last_run_id and bs.buyer_id = o.buyer_id
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -75,7 +76,7 @@ public class OfferQueries {
                     RiskLevel.valueOf(rs.getString("risk_level")), rs.getBigDecimal("pd"), rs.getBigDecimal("income"),
                     rs.getBigDecimal("el"), rs.getBigDecimal("tr"), rs.getBigDecimal("rank_value"),
                     new OfferFlagsDto(flag(flags, "delayProbable"), flag(flags, "lowData"), flag(flags, "reducedToLimit"),
-                            rs.getBoolean("is_new")),
+                            rs.getBoolean("is_new"), rs.getString("low_data_reason")),
                     json.read(rs.getString("reasons"), REASONS), rs.getString("reasons_text"), rs.getString("message_draft"),
                     rs.getObject("queued_at", OffsetDateTime.class), rs.getLong("last_run_id"), rs.getString("revoke_reason"),
                     rs.getString("decided_by"), rs.getObject("decided_at", OffsetDateTime.class), rs.getString("text_source"),

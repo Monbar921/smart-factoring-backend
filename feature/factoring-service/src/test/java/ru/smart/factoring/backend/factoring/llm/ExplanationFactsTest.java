@@ -41,7 +41,7 @@ class ExplanationFactsTest {
 
     private static ExplanationFacts facts(final String number, final List<ModelClient.Reason> reasons) {
         return new ExplanationFacts("Клиент 0008", "ИНН 9725077448", "9725077448", number, "22.12.2025", "B", "1,58%",
-                ExplanationFacts.outOf100(new BigDecimal("0.0158")), false, true,
+                ExplanationFacts.outOf100(new BigDecimal("0.0158")), false, null, true,
                 false, "5 747 121", "102 082", "20,7%", 40, reasons);
     }
 }

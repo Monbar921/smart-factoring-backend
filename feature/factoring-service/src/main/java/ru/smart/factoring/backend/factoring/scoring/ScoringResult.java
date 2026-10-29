@@ -23,7 +23,7 @@ public record ScoringResult(Map<Long, BuyerScore> buyers, Map<Long, UpdScore> up
      * @param error ошибка оценки PD после повторов (НФР-4.1)
      */
     public record BuyerScore(long buyerId, String inn, StopFactors.StopFactor stopFactor, boolean hasPaymentHistory,
-                             BigDecimal pd, String pdSource, boolean lowData, RiskLevel riskLevel,
+                             BigDecimal pd, String pdSource, boolean lowData, String lowDataReason, RiskLevel riskLevel,
                              List<ModelClient.Reason> reasons, String modelVersion, LocalDate dataDate, boolean fromCache,
                              String error) {
     }

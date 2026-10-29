@@ -79,7 +79,7 @@ public class ManualUploadService {
             "manager_code", "edo_consent", "factoring_client", CONTROL_CASE, "batch_id"), false, List.of());
     private static final SourceUpsert BUYERS = new SourceUpsert("buyers", "manual_upload_buyer", "buyers.csv", List.of("inn"), Set.of(),
             List.of(), List.of("ogrn", "name", "okved", "okved_section", "region", "registration_date", "data_date", "pd",
-            "pd_model_version"), false, List.of());
+            "pd_model_version", "low_data_reason"), false, List.of());
     private static final SourceUpsert FINANCIALS = new SourceUpsert("buyerFinancials", "manual_upload_buyer_financials", "buyer_financials.csv",
             List.of("inn", "year"), Set.of(), List.of(),
             Stream.of(List.of("simplified"), FINANCIAL_COLUMNS, List.of("data_date")).flatMap(List::stream).toList(), false, List.of());
@@ -622,7 +622,8 @@ public class ManualUploadService {
                 .addValue("okved_section", row.get("okved_section")).addValue("region", row.get("region"))
                 .addValue("registration_date", date(row.get("registration_date")))
                 .addValue("data_date", date(row.get("data_date")))
-                .addValue("pd", decimal(row.get("pd"))).addValue("pd_model_version", row.get("pd_model_version")));
+                .addValue("pd", decimal(row.get("pd"))).addValue("pd_model_version", row.get("pd_model_version"))
+                .addValue("low_data_reason", row.get("low_data_reason")));
         write(FINANCIALS, t.financials(), Set.of(), counts, report, (row, p) -> {
             p.addValue("inn", row.get("inn")).addValue("year", integer(row.get("year")))
                     .addValue("simplified", Boolean.TRUE.equals(bool(row.get("simplified"))))

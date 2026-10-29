@@ -100,7 +100,7 @@ public class ScoringStep implements RunStep {
             final boolean hasHistory = buyersWithHistory.contains(buyer.buyer().inn());
             if (stop != null) {
                 buyerScores.put(buyer.id(), new ScoringResult.BuyerScore(buyer.id(), buyer.buyer().inn(), stop, hasHistory, null, null,
-                        false, null, List.of(), null, buyer.dataDate(), false, null));
+                        false, null, null, List.of(), null, buyer.dataDate(), false, null));
                 log.add(RunLog.Entry.of(runId, RunLog.Level.INFO, STEP_NO, "STOP_FACTOR",
                         "Стоп-фактор " + stop + " у покупателя ИНН " + buyer.buyer().inn() + ": " + buyer.egrulStatus()).buyer(buyer.id()));
             } else {
@@ -151,7 +151,7 @@ public class ScoringStep implements RunStep {
             // PD пересчитывается, только если обновились данные покупателя или версия модели (п. 4.2)
             repository.cachedPd(buyer.id(), buyer.dataDate(), modelVersion).ifPresentOrElse(
                     cached -> scores.put(buyer.id(), buyerScore(context, buyer, buyersWithHistory, cached.pd(), cached.pdSource(),
-                            cached.lowData(), cached.reasons(), modelVersion, true, null)),
+                            cached.lowData(), null, cached.reasons(), modelVersion, true, null)),
                     () -> missing.add(buyer));
         }
         final StepProgress progress = missing.isEmpty() ? null : context.progress(STEP_NO, "Оценка PD", missing.size());
@@ -167,15 +167,15 @@ public class ScoringStep implements RunStep {
                 if (result == null || !SCORED.equals(result.status()) || result.pd() == null) {
                     final String error = response.error() != null ? response.error()
                             : result != null && result.error() != null ? result.error() : "нет ответа модели PD";
-                    scores.put(buyer.id(), buyerScore(context, buyer, buyersWithHistory, null, null, false, List.of(), modelVersion,
-                            false, error));
+                    scores.put(buyer.id(), buyerScore(context, buyer, buyersWithHistory, null, null, false, null, List.of(),
+                            modelVersion, false, error));
                     log.add(RunLog.Entry.of(runId, RunLog.Level.ERROR, STEP_NO, "SCORING_ERROR",
                             "Ошибка оценки PD покупателя ИНН " + buyer.buyer().inn() + ": " + error).buyer(buyer.id()));
                     continue;
                 }
                 repository.cachePd(buyer.id(), buyer.dataDate(), modelVersion, result);
                 scores.put(buyer.id(), buyerScore(context, buyer, buyersWithHistory, result.pd(), result.pdSource(),
-                        Boolean.TRUE.equals(result.lowData()), result.reasons(), modelVersion, false, null));
+                        Boolean.TRUE.equals(result.lowData()), result.lowDataReason(), result.reasons(), modelVersion, false, null));
             }
             progress.advance(batch.size());
         }
@@ -197,11 +197,13 @@ public class ScoringStep implements RunStep {
 
     private ScoringResult.BuyerScore buyerScore(final RunContext context, final ScoringRepository.BuyerData buyer,
                                                 final Set<String> buyersWithHistory, final BigDecimal pd, final String pdSource,
-                                                final boolean lowData, final List<ModelClient.Reason> reasons,
+                                                final boolean lowData, final String lowDataReason,
+                                                final List<ModelClient.Reason> reasons,
                                                 final String modelVersion, final boolean fromCache, final String error) {
         final RiskLevel level = pd != null ? context.getParameters().riskLevel(pd) : null;
         return new ScoringResult.BuyerScore(buyer.id(), buyer.buyer().inn(), null, buyersWithHistory.contains(buyer.buyer().inn()),
-                pd, pdSource, lowData, level, reasons != null ? reasons : List.of(), modelVersion, buyer.dataDate(), fromCache, error);
+                pd, pdSource, lowData, lowDataReason, level, reasons != null ? reasons : List.of(), modelVersion, buyer.dataDate(),
+                fromCache, error);
     }
 
     /**

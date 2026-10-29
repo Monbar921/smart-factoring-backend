@@ -50,7 +50,7 @@ public class ScoringRepository {
                     rs.getBigDecimal("net_profit")));
         });
         jdbc.query("""
-                select b.id, b.inn, b.okved, b.okved_section, b.region, b.registration_date,
+                select b.id, b.inn, b.okved, b.okved_section, b.region, b.registration_date, b.low_data_reason,
                        e.egrul_status, e.bankruptcy_stage, e.bankruptcy_end_date, e.data_date
                 from buyer b
                 left join buyer_external_data e on e.buyer_id = b.id
@@ -59,7 +59,7 @@ public class ScoringRepository {
             final long id = rs.getLong("id");
             buyers.put(id, new BuyerData(id, new ModelClient.Buyer(rs.getString("inn"), rs.getString("okved"),
                     rs.getString("okved_section"), rs.getString("region"), rs.getObject("registration_date", LocalDate.class),
-                    financials.getOrDefault(id, List.of())),
+                    financials.getOrDefault(id, List.of()), rs.getString("low_data_reason")),
                     rs.getString("egrul_status"), rs.getString("bankruptcy_stage"),
                     rs.getObject("bankruptcy_end_date", LocalDate.class), rs.getObject("data_date", LocalDate.class)));
         });
@@ -105,7 +105,8 @@ public class ScoringRepository {
         }
         return jdbc.query("""
                         select pd, pd_source, low_data, reasons from buyer_pd_cache
-                        where buyer_id = :buyerId and data_date = :dataDate and model_version = :modelVersion""",
+                        where buyer_id = :buyerId and data_date = :dataDate and model_version = :modelVersion
+                          and pd_source = 'MODEL'""",
                 new MapSqlParameterSource()
                         .addValue("buyerId", buyerId)
                         .addValue("dataDate", dataDate)
@@ -114,8 +115,12 @@ public class ScoringRepository {
                         json.read(rs.getString("reasons"), REASONS))).stream().findFirst();
     }
 
+    /**
+     * Кешируется только PD модели: базовый PD «мало данных» - таблица сервиса моделей, её правят без смены версии модели,
+     * и закешированный остался бы старым (замечания 29.10, П3-5). Считается он мгновенно.
+     */
     public void cachePd(final long buyerId, final LocalDate dataDate, final String modelVersion, final ModelClient.PdResult result) {
-        if (dataDate == null) {
+        if (dataDate == null || !"MODEL".equals(result.pdSource())) {
             return;
         }
         jdbc.update("""
@@ -135,8 +140,8 @@ public class ScoringRepository {
     public void saveBuyerScores(final long runId, final Collection<ScoringResult.BuyerScore> scores) {
         jdbc.batchUpdate("""
                         insert into buyer_score (run_id, buyer_id, has_external_data, stop_factor, has_payment_history, pd, pd_source,
-                                                 low_data, risk_level, reasons, model_version, data_date, from_cache)
-                        values (:runId, :buyerId, true, :stopFactor, :hasHistory, :pd, :pdSource, :lowData, :riskLevel,
+                                                 low_data, low_data_reason, risk_level, reasons, model_version, data_date, from_cache)
+                        values (:runId, :buyerId, true, :stopFactor, :hasHistory, :pd, :pdSource, :lowData, :lowDataReason, :riskLevel,
                                 cast(:reasons as jsonb), :modelVersion, :dataDate, :fromCache)""",
                 scores.stream()
                         .map(score -> new MapSqlParameterSource()
@@ -147,6 +152,7 @@ public class ScoringRepository {
                                 .addValue("pd", score.pd())
                                 .addValue("pdSource", score.pdSource())
                                 .addValue("lowData", score.lowData())
+                                .addValue("lowDataReason", score.lowDataReason())
                                 .addValue("riskLevel", score.riskLevel() != null ? score.riskLevel().name() : null)
                                 .addValue("reasons", json.write(score.reasons()))
                                 .addValue("modelVersion", score.modelVersion())
