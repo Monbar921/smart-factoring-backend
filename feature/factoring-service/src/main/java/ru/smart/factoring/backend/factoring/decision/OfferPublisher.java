@@ -56,7 +56,7 @@ public class OfferPublisher {
             final long updId = decision.state().upd().id();
             if (decided.contains(updId)) {
                 log.add(entry(runId, "SKIPPED_DECIDED", UpdNumber.label(decision.state().upd().number())
-                        + ": решение менеджера принято во время прогона, в очередь не попадает (ПР-8)", decision));
+                        + ": решение менеджера принято во время анализа, в очередь не попадает (ПР-8)", decision));
                 continue;
             }
             final DecisionRepository.QueuedOffer existing = queued.remove(updId);

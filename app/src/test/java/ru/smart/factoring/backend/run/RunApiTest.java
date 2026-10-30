@@ -73,8 +73,8 @@ class RunApiTest extends AbstractSmartFactoringBackendTest {
                 .contains("RUN_STARTED", "RUN_FINISHED");
         // тексты журнала - для человека: дата ДД.ММ.ГГГГ, статус по-русски
         assertThat(log.get("items")).extracting(entry -> entry.get("message").asString())
-                .contains("Прогон запущен, дата расчёта 24.10.2026")
-                .anySatisfy(message -> assertThat(message).startsWith("Прогон завершён: выполнен, "));
+                .contains("Анализ дебиторки запущен, дата расчёта 24.10.2026")
+                .anySatisfy(message -> assertThat(message).startsWith("Анализ дебиторки завершён: выполнен, "));
     }
 
     @Test
@@ -107,7 +107,7 @@ class RunApiTest extends AbstractSmartFactoringBackendTest {
 
         assertThat(response.status()).isEqualTo(409);
         assertThat(response.body().get("code").asString()).isEqualTo("RUN_ALREADY_RUNNING");
-        assertThat(response.body().get("message").asString()).startsWith("Прогон уже идёт: прогон № ");
+        assertThat(response.body().get("message").asString()).startsWith("Анализ дебиторки уже идёт: запуск № ");
         assertThat(attempts()).containsExactly("REJECTED RUN_ALREADY_RUNNING null");
     }
 
@@ -121,7 +121,7 @@ class RunApiTest extends AbstractSmartFactoringBackendTest {
         final Api.Response again = Api.post("/runs", Map.of());
         assertThat(again.status()).isEqualTo(409);
         assertThat(again.body().get("code").asString()).isEqualTo("RUN_ALREADY_DONE");
-        assertThat(again.body().get("message").asString()).startsWith("Эти данные уже прогнаны. Результат — прогон № " + first + " от ");
+        assertThat(again.body().get("message").asString()).startsWith("Эти данные уже проанализированы. Результат — запуск № " + first + " от ");
         assertThat(again.body().get("details").get("runId").asLong()).isEqualTo(first);
 
         // «Прогнать заново» с подтверждением
@@ -150,7 +150,7 @@ class RunApiTest extends AbstractSmartFactoringBackendTest {
                 {"preferred_username":"demo","azp":"smart-factoring-guest","realm_access":{"roles":["operator","manager"]}}""");
 
         assertThat(response.status()).isEqualTo(403);
-        assertThat(response.body().get("message").asString()).isEqualTo("Запуск прогона доступен менеджеру");
+        assertThat(response.body().get("message").asString()).isEqualTo("Запуск анализа дебиторки доступен менеджеру");
         assertThat(jdbcTemplate.queryForObject("select count(*) from run", Long.class)).isZero();
         assertThat(attempts()).containsExactly("REJECTED FORBIDDEN гость");
     }
