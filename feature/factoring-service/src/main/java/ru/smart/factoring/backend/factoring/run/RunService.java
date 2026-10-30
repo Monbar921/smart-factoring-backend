@@ -3,6 +3,7 @@ package ru.smart.factoring.backend.factoring.run;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.http.HttpStatus;
 import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -12,6 +13,7 @@ import ru.smart.factoring.backend.api.common.PageDto;
 import ru.smart.factoring.backend.api.run.InitiatorType;
 import ru.smart.factoring.backend.api.run.ManualComparisonDto;
 import ru.smart.factoring.backend.api.run.RunDefaultsDto;
+import ru.smart.factoring.backend.api.run.RunAttemptDto;
 import ru.smart.factoring.backend.api.run.RunDto;
 import ru.smart.factoring.backend.api.run.RunListItemDto;
 import ru.smart.factoring.backend.api.run.RunLogEntryDto;
@@ -31,6 +33,8 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +53,7 @@ public class RunService {
     private static final TypeReference<Map<String, String>> STRING_MAP = new TypeReference<>() {
     };
     private static final int MAX_PAGE_SIZE = 500;
+    private static final DateTimeFormatter STARTED_AT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
 
     private final RunRepository runRepository;
     private final RunExecutor runExecutor;
@@ -58,6 +63,7 @@ public class RunService {
     private final ThreadPoolTaskExecutor runTaskExecutor;
     private final JdbcClient jdbc;
     private final Json json;
+    private final RunFingerprint runFingerprint;
 
     public RunDefaultsDto defaults() {
         return new RunDefaultsDto(sourceCatalog.dataDate().orElse(null), sourceCatalog.snapshotDate().orElse(null),
@@ -65,18 +71,60 @@ public class RunService {
     }
 
     /**
-     * Запускает прогон асинхронно и сразу возвращает его номер (ПР-2). Второй одновременный - 409 (ПР-3).
+     * Запускает прогон асинхронно и сразу возвращает его номер (ПР-2). Каждая попытка, и отклонённая, - в журнал попыток
+     * (П4-6). Отказы: гость (403, П4-1), идёт другой прогон (409, ПР-3, П4-5), на тех же данных уже есть успешный прогон
+     * и не нажато «Прогнать заново» (409, П4-3).
      */
+    public long start(final StartRunRequest request, final InitiatorType initiatorType, final RunRepository.Initiator initiator) {
+        try {
+            final long runId = launch(request, initiatorType, initiator);
+            runRepository.insertAttempt(initiator, initiatorType, "STARTED", null, null, runId);
+            log.info("Прогон {} запущен: {} [{}]", runId, initiator.username(), initiator.role());
+            return runId;
+        } catch (ApiException e) {
+            final Object runId = e.getDetails().get("runId");
+            runRepository.insertAttempt(initiator, initiatorType, "REJECTED", e.getCode(), e.getMessage(),
+                    runId instanceof Number number ? number.longValue() : null);
+            log.warn("Запуск прогона отклонён: {} [{}] - {}", initiator.username(), initiator.role(), e.getMessage());
+            throw e;
+        }
+    }
+
+    public PageDto<RunAttemptDto> attempts(final int page, final int size) {
+        final int pageSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        final List<RunAttemptDto> items = runRepository.findAttempts(Math.max(page, 0), pageSize).stream()
+                .map(row -> new RunAttemptDto(row.id(), row.attemptedAt(), row.initiator(), row.initiatorRole(), row.outcome(),
+                        row.reason(), row.message(), row.runId()))
+                .toList();
+        return new PageDto<>(items, Math.max(page, 0), pageSize, runRepository.countAttempts());
+    }
+
     @SuppressWarnings("checkstyle:IllegalCatch")
-    public long start(final StartRunRequest request, final InitiatorType initiatorType, final String initiator) {
+    private long launch(final StartRunRequest request, final InitiatorType initiatorType, final RunRepository.Initiator initiator) {
+        if (initiator.guest()) {
+            throw new ApiException("FORBIDDEN", HttpStatus.FORBIDDEN, "Запуск прогона доступен менеджеру", Map.of());
+        }
+        final Long running = runRepository.findRunningId().orElse(null);
+        if (running != null) {
+            throw RunRepository.alreadyRunning(running);
+        }
         final LocalDate dataDate = sourceCatalog.dataDate()
                 .orElseThrow(() -> ApiException.validation("Нет данных в источниках: сначала загрузите данные (ручная загрузка)"));
         final LocalDate calcDate = request.calcDate() != null ? request.calcDate() : dataDate;
         final List<String> clientInns = normalizeClients(request.clientInns());
         final RunParameters parameters = parameterService.load();
+        final LocalDate snapshotDate = sourceCatalog.snapshotDate().orElse(null);
+        final String fingerprint = runFingerprint.of(calcDate, clientInns, dataDate, snapshotDate, parameters);
+        if (fingerprint != null && !Boolean.TRUE.equals(request.force())) {
+            runRepository.findDoneByFingerprint(fingerprint).ifPresent(done -> {
+                throw new ApiException("RUN_ALREADY_DONE", HttpStatus.CONFLICT, "Эти данные уже прогнаны. Результат — прогон № "
+                        + done.id() + " от " + done.startedAt().atZoneSameInstant(ZoneId.systemDefault()).format(STARTED_AT),
+                        Map.of("runId", done.id(), "startedAt", done.startedAt().toString()));
+            });
+        }
 
         final long runId = runRepository.insertRunning(calcDate, json.write(clientInns), initiatorType, initiator, dataDate,
-                sourceCatalog.snapshotDate().orElse(null), json.write(parameters.raw()));
+                snapshotDate, json.write(parameters.raw()), fingerprint);
         runRepository.insertSteps(runId, runExecutor.steps().stream().map(RunStep::stepNo).toList());
 
         final RunContext context = new RunContext(runId, calcDate, clientInns, parameters);
@@ -114,7 +162,7 @@ public class RunService {
                 .map(run -> {
                     final Map<String, Object> summary = summary(run);
                     return new RunListItemDto(run.id(), RunStatus.valueOf(run.status()), run.calcDate(), run.startedAt(),
-                            run.finishedAt(), durationMs(run.startedAt(), run.finishedAt()), run.initiator(),
+                            run.finishedAt(), durationMs(run.startedAt(), run.finishedAt()), run.initiator(), run.initiatorRole(),
                             integer(summary.get("clientCount")), integer(summary.get("openUpdCount")),
                             integer(summary.get("offerCount")), decimal(summary.get("eadTotal")));
                 })

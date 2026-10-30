@@ -775,4 +775,37 @@
         </sql>
     </changeSet>
 
+    <!--
+        Замечания 30.10 (П4-3, П4-6): отпечаток прогона - повтор на тех же данных не запускается без «Прогнать заново»;
+        роль запустившего и журнал попыток запуска, в том числе отклонённых. П4-4: уведомление об изменении условий.
+    -->
+    <changeSet id="SMF-33-run-fingerprint-attempts" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".run add column fingerprint varchar(64);
+            alter table "${schema}".run add column initiator_role varchar(64);
+            create index ix_run_fingerprint on "${schema}".run (fingerprint) where fingerprint is not null;
+            comment on column "${schema}".run.fingerprint is 'SHA-256 отпечатка: данные источника, даты, клиенты, параметры, версии моделей и текстов (П4-3)';
+            comment on column "${schema}".run.initiator_role is 'Роли запустившего: operator, manager (П4-6)';
+
+            create table "${schema}".run_attempt
+            (
+                id             bigint generated always as identity primary key,
+                attempted_at   timestamptz not null default now(),
+                initiator      varchar(256),
+                initiator_role varchar(64),
+                initiator_type varchar(32) not null,
+                outcome        varchar(16) not null check (outcome in ('STARTED', 'REJECTED')),
+                reason         varchar(32),
+                message        text,
+                run_id         bigint
+            );
+            create index ix_run_attempt_attempted_at on "${schema}".run_attempt (attempted_at desc);
+            comment on table "${schema}".run_attempt is 'Попытки запуска прогона, и отклонённые: нет прав, данные уже прогнаны, прогон уже идёт (П4-6)';
+
+            alter table "${schema}".notification drop constraint notification_type_check;
+            alter table "${schema}".notification add constraint notification_type_check
+                check (type in ('NEW_OFFER', 'OFFER_CHANGED', 'OVERDUE', 'REMINDER', 'RISK_SIGNAL'));
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

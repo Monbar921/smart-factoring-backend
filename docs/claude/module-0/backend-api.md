@@ -7,12 +7,14 @@ JSON в camelCase, деньги — числа в рублях с 2 знакам
 Ошибки — единый формат, HTTP-код по смыслу:
 
 ```json
-{ "code": "RUN_ALREADY_RUNNING", "message": "Прогон уже выполняется", "details": { "runId": 12 } }
+{ "code": "RUN_ALREADY_RUNNING", "message": "Прогон уже идёт: прогон № 12", "details": { "runId": 12 } }
 ```
 
 | Код | HTTP | Когда |
 |---|---|---|
-| `RUN_ALREADY_RUNNING` | 409 | ПР-3 |
+| `RUN_ALREADY_RUNNING` | 409 | ПР-3, П4-5 |
+| `RUN_ALREADY_DONE` | 409 | на тех же данных уже есть успешный прогон, `details.runId`, `details.startedAt` (П4-3) |
+| `FORBIDDEN` | 403 | гостю доступен только просмотр (П4-1, П4-2): отвечает gateway, на запуск прогона — и backend |
 | `NOT_FOUND` | 404 | нет прогона/УПД/клиента/предложения |
 | `OFFER_NOT_QUEUED` | 409 | решение по предложению не в статусе «в очереди» |
 | `VALIDATION_ERROR` | 400 | неверные параметры |
@@ -40,9 +42,12 @@ UI берёт из своего словаря. Причины отказа: `UP
 
 ### `POST /runs` — запуск (ПР-2, ПР-3)
 
-Запрос (оба поля необязательны): `{ "clientInns": ["7710000001"], "calcDate": "2026-10-24" }`.
-`clientInns` не задан (Р-29) — все клиенты; `calcDate` не задан — последняя дата данных.
-Ответ `202`: `{ "runId": 13 }`. Если прогон уже идёт — `409 RUN_ALREADY_RUNNING`.
+Запрос (все поля необязательны): `{ "clientInns": ["7710000001"], "calcDate": "2026-10-24", "force": false }`.
+`clientInns` не задан (Р-29) — все клиенты; `calcDate` не задан — последняя дата данных; `force: true` — «Прогнать
+заново» (Р-69).
+Ответ `202`: `{ "runId": 13 }`. Если прогон уже идёт — `409 RUN_ALREADY_RUNNING`; если на тех же данных уже есть
+успешный прогон и нет `force` — `409 RUN_ALREADY_DONE`; гостевой токен — `403 FORBIDDEN`. Каждая попытка, и
+отклонённая, пишется в журнал попыток.
 Инициатор берётся из JWT (`preferred_username`), тип — `OPERATOR` с экрана процесса, `API` при заголовке
 `X-Initiator-Type: API`.
 
@@ -52,9 +57,21 @@ UI берёт из своего словаря. Причины отказа: `UP
 { "items": [ {
     "id": 13, "status": "DONE", "calcDate": "2026-10-24",
     "startedAt": "2026-10-25T10:00:00+03:00", "finishedAt": "2026-10-25T10:00:41+03:00", "durationMs": 41000,
-    "initiator": "operator", "clientCount": 6, "openUpdCount": 28, "offerCount": 12, "eadTotal": 41975000.00
+    "initiator": "operator", "initiatorRole": "operator", "clientCount": 6, "openUpdCount": 28, "offerCount": 12, "eadTotal": 41975000.00
   } ], "page": 0, "size": 50, "total": 1 }
 ```
+
+### `GET /runs/attempts?page&size` — попытки запуска (П4-6)
+
+```json
+{ "items": [ {
+    "id": 5, "attemptedAt": "2026-10-30T10:00:00+03:00", "initiator": "ivanov", "initiatorRole": "operator",
+    "outcome": "REJECTED", "reason": "RUN_ALREADY_DONE", "message": "Эти данные уже прогнаны. Результат — прогон № 13 от …",
+    "runId": 13
+  } ], "page": 0, "size": 50, "total": 1 }
+```
+
+`outcome`: `STARTED` (`runId` — запущенный прогон) или `REJECTED` (`runId` — прежний результат или идущий прогон).
 
 ### `GET /runs/{id}` — статус, шаги, числа (ЭП-2, ЭП-3, ЭП-6, ЭП-9)
 
@@ -181,8 +198,9 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
 
 ### `GET /managers/{id}/notifications?page&size`
 
-`{ items: [ { id, runId, type, createdAt, client, buyer, updNumber, offerId, payload } ] }` — `type`: `NEW_OFFER`, `OVERDUE`
-(`payload.outstanding`, `payload.overdueDays`), `REMINDER`, `RISK_SIGNAL`.
+`{ items: [ { id, runId, type, createdAt, client, buyer, updNumber, offerId, payload } ] }` — `type`: `NEW_OFFER`, `OFFER_CHANGED`
+(условия изменились: `payload.ead`, `payload.previousEad`, Р-70), `OVERDUE` (`payload.outstanding`,
+`payload.overdueDays`), `REMINDER`, `RISK_SIGNAL`.
 
 ### `GET /clients/{id}/card` — карточка клиента (п. 5.5)
 

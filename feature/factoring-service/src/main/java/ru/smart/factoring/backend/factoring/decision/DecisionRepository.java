@@ -68,11 +68,15 @@ public class DecisionRepository {
      */
     public List<QueuedOffer> queuedOffers(final Collection<Long> clientIds) {
         return jdbc.query("""
-                        select o.id, o.upd_id, r.calc_date as created_calc_date
+                        select o.id, o.upd_id, r.calc_date as created_calc_date, o.ead, o.price, o.term_days,
+                               (select max(nr.calc_date) from notification n join run nr on nr.id = n.run_id
+                                where n.offer_id = o.id and n.type = 'REMINDER') as reminded_calc_date
                         from offer o join run r on r.id = o.created_run_id
                         where o.status = 'QUEUED' and o.client_id in (:clientIds)""",
                 new MapSqlParameterSource("clientIds", clientIds.isEmpty() ? List.of(-1L) : clientIds),
-                (rs, rowNum) -> new QueuedOffer(rs.getLong("id"), rs.getLong("upd_id"), rs.getObject("created_calc_date", LocalDate.class)));
+                (rs, rowNum) -> new QueuedOffer(rs.getLong("id"), rs.getLong("upd_id"), rs.getObject("created_calc_date", LocalDate.class),
+                        rs.getBigDecimal("ead"), rs.getBigDecimal("price"), rs.getInt("term_days"),
+                        rs.getObject("reminded_calc_date", LocalDate.class)));
     }
 
     public void saveDecisions(final long runId, final Collection<DecisionEngine.Decision> decisions, final Set<Long> newUpdIds) {
@@ -126,6 +130,13 @@ public class DecisionRepository {
                 }).toArray(MapSqlParameterSource[]::new));
     }
 
-    public record QueuedOffer(long id, long updId, LocalDate createdCalcDate) {
+    /**
+     * Предложение в очереди перед публикацией прогона.
+     *
+     * @param ead, price, termDays условия, которые видел менеджер: изменились - уведомление OFFER_CHANGED (П4-4)
+     * @param remindedCalcDate     дата расчёта последнего напоминания; на ту же дату напоминание не повторяется
+     */
+    public record QueuedOffer(long id, long updId, LocalDate createdCalcDate, BigDecimal ead, BigDecimal price, int termDays,
+                              LocalDate remindedCalcDate) {
     }
 }

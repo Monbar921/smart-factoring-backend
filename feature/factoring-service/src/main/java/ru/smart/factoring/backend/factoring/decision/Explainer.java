@@ -17,6 +17,13 @@ public interface Explainer {
     String provider();
 
     /**
+     * Версия текстов для отпечатка прогона (П4-3): провайдер и промпты. Другие промпты - другой отпечаток.
+     */
+    default String textsVersion() {
+        return provider();
+    }
+
+    /**
      * @param source откуда тексты
      * @param error  причина сбоя LLM для source = FAILED (в журнал прогона)
      */

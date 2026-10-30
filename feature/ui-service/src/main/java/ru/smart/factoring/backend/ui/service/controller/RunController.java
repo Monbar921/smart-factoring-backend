@@ -2,6 +2,7 @@ package ru.smart.factoring.backend.ui.service.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ import ru.smart.factoring.backend.api.details.RunClientDto;
 import ru.smart.factoring.backend.api.details.RunUpdDto;
 import ru.smart.factoring.backend.api.details.UpdTraceDto;
 import ru.smart.factoring.backend.api.run.InitiatorType;
+import ru.smart.factoring.backend.api.run.RunAttemptDto;
 import ru.smart.factoring.backend.api.run.RunDefaultsDto;
 import ru.smart.factoring.backend.api.run.RunDto;
 import ru.smart.factoring.backend.api.run.RunListItemDto;
@@ -27,10 +29,12 @@ import ru.smart.factoring.backend.api.run.RunLogEntryDto;
 import ru.smart.factoring.backend.api.run.StartRunRequest;
 import ru.smart.factoring.backend.api.run.StartRunResponse;
 import ru.smart.factoring.backend.factoring.details.RunDetailsService;
+import ru.smart.factoring.backend.factoring.run.RunRepository;
 import ru.smart.factoring.backend.factoring.run.RunService;
 import ru.smart.factoring.backend.security.JwtPayload;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Экран процесса: запуск прогона, ход, история, журнал (ЭП-1…ЭП-9).
@@ -40,8 +44,14 @@ import java.util.List;
 @RequestMapping("/internal/rest/runs")
 @RequiredArgsConstructor
 public class RunController {
+    /** роли, которые показываются в истории прогонов (П4-6) */
+    private static final List<String> SHOWN_ROLES = List.of("operator", "manager");
+
     private final RunService runService;
     private final RunDetailsService runDetailsService;
+    /** клиент Keycloak гостевого входа «Запуск демо»: его токен - только просмотр (П4-1) */
+    @Value("${smart-factoring.guest-client-id:smart-factoring-guest}")
+    private String guestClientId;
 
     @GetMapping("/defaults")
     public RunDefaultsDto defaults() {
@@ -56,9 +66,29 @@ public class RunController {
     public StartRunResponse start(final @Nullable @RequestBody(required = false) StartRunRequest request,
                                   final @Nullable @RequestHeader(value = "X-Initiator-Type", required = false) InitiatorType type,
                                   final @Nullable JwtPayload user) {
-        final StartRunRequest body = request != null ? request : new StartRunRequest(null, null);
+        final StartRunRequest body = request != null ? request : new StartRunRequest(null, null, null);
         final InitiatorType initiatorType = type != null ? type : InitiatorType.OPERATOR;
-        return new StartRunResponse(runService.start(body, initiatorType, user != null ? user.username() : null));
+        return new StartRunResponse(runService.start(body, initiatorType, initiator(user)));
+    }
+
+    /**
+     * Попытки запуска прогона, и отклонённые (П4-6).
+     */
+    @GetMapping("/attempts")
+    public PageDto<RunAttemptDto> attempts(@RequestParam(defaultValue = "0") final int page,
+                                           @RequestParam(defaultValue = "50") final int size) {
+        return runService.attempts(page, size);
+    }
+
+    private RunRepository.Initiator initiator(final @Nullable JwtPayload user) {
+        if (user == null) {
+            return RunRepository.Initiator.NONE;
+        }
+        if (guestClientId.equals(user.authorizedParty())) {
+            return new RunRepository.Initiator(user.username(), "гость", true);
+        }
+        final String roles = user.roles().stream().filter(SHOWN_ROLES::contains).sorted().collect(Collectors.joining(", "));
+        return new RunRepository.Initiator(user.username(), roles.isEmpty() ? null : roles, false);
     }
 
     @GetMapping

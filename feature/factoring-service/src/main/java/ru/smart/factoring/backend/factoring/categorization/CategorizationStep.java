@@ -128,9 +128,17 @@ public class CategorizationStep implements RunStep {
                     + upds.size() + " УПД (п. 3.10 в)", upds.getFirst()));
         });
 
+        // П4-4: повторный прогон на ту же дату расчёта не повторяет уведомление о той же просрочке (по УПД) и тот же
+        // сигнал в риск (по покупателю) - менеджер уже получил их от прежнего прогона
         jdbc.batchUpdate("""
                         insert into notification (run_id, manager_id, type, client_id, buyer_id, upd_id, payload)
-                        values (:runId, :managerId, :type, :clientId, :buyerId, :updId, cast(:payload as jsonb))""",
+                        select :runId, :managerId, :type, :clientId, :buyerId, :updId, cast(:payload as jsonb)
+                        where not exists (
+                            select 1 from notification n join run r on r.id = n.run_id
+                            where n.type = :type and n.manager_id = :managerId
+                              and r.calc_date = (select calc_date from run where id = :runId)
+                              and case when :type = 'RISK_SIGNAL' then n.buyer_id is not distinct from cast(:buyerId as bigint)
+                                       else n.upd_id is not distinct from cast(:updId as bigint) end)""",
                 notifications.toArray(MapSqlParameterSource[]::new));
         runLog.write(log);
 
