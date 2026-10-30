@@ -39,6 +39,12 @@ public class CrmService {
     };
     private static final int MAX_PAGE_SIZE = 500;
     private static final String LAST_SUCCESSFUL_RUN = "(select max(id) from run where status in ('DONE', 'DONE_WITH_WARNINGS'))";
+    /**
+     * Уведомления менеджера - всех успешных прогонов на дату расчёта последнего (П4-4): повторный прогон тех же данных
+     * уведомлений не повторяет, и уведомления прежнего прогона не должны пропадать. Каждое уведомление на дату - одно.
+     */
+    private static final String NOTIFICATION_RUNS = "(select r.id from run r where r.status in ('DONE', 'DONE_WITH_WARNINGS')"
+            + " and r.calc_date = (select calc_date from run where id = " + LAST_SUCCESSFUL_RUN + "))";
 
     private final NamedParameterJdbcTemplate jdbc;
     private final OfferQueries offers;
@@ -49,8 +55,8 @@ public class CrmService {
         return jdbc.query("""
                         select m.id, m.code, m.full_name,
                                (select count(*) from offer o where o.manager_id = m.id and o.status = 'QUEUED') as queued,
-                               (select count(*) from notification n where n.manager_id = m.id and n.run_id = %s) as notifications
-                        from manager m order by m.full_name""".formatted(LAST_SUCCESSFUL_RUN), new MapSqlParameterSource(),
+                               (select count(*) from notification n where n.manager_id = m.id and n.run_id in %s) as notifications
+                        from manager m order by m.full_name""".formatted(NOTIFICATION_RUNS), new MapSqlParameterSource(),
                 (rs, rowNum) -> new ManagerDto(rs.getLong("id"), rs.getString("code"), rs.getString("full_name"), rs.getInt("queued"),
                         rs.getInt("notifications")));
     }
@@ -68,7 +74,7 @@ public class CrmService {
                 .addValue("type", type)
                 .addValue("size", pageSize)
                 .addValue("offset", (long) Math.max(page, 0) * pageSize);
-        final String where = " where n.manager_id = :managerId and n.run_id = " + LAST_SUCCESSFUL_RUN
+        final String where = " where n.manager_id = :managerId and n.run_id in " + NOTIFICATION_RUNS
                 + " and (cast(:type as varchar) is null or n.type = :type)";
         final List<NotificationDto> items = jdbc.query("""
                         select n.*, c.inn as client_inn, c.name as client_name, b.inn as buyer_inn, b.name as buyer_name, u.number as upd_number

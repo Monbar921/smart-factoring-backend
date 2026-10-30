@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import ru.smart.factoring.backend.AbstractSmartFactoringBackendTest;
+import ru.smart.factoring.backend.support.Api;
 import ru.smart.factoring.backend.support.Fixture;
 import ru.smart.factoring.backend.support.TestDatabase;
 
@@ -39,6 +40,8 @@ class RepeatRunTest extends AbstractSmartFactoringBackendTest {
         final List<String> queueAfterFirst = queue();
         assertThat(queueAfterFirst).isNotEmpty();
         assertThat(notifications(first)).isPositive();
+        final long managerId = Api.get("/managers").body().get(0).get("id").asLong();
+        final long shownAfterFirst = shownNotifications(managerId);
 
         final long second = Fixture.run(Map.of("force", true)).get("id").asLong();
 
@@ -49,6 +52,12 @@ class RepeatRunTest extends AbstractSmartFactoringBackendTest {
         assertThat(jdbcTemplate.queryForObject("select count(*) from offer where status = 'QUEUED' and last_run_id <> ?",
                 Long.class, second)).isZero();
         assertThat(notifications(second)).isZero();
+        // уведомления прежнего прогона на ту же дату менеджер по-прежнему видит
+        assertThat(shownNotifications(managerId)).isEqualTo(shownAfterFirst).isPositive();
+    }
+
+    private static long shownNotifications(final long managerId) {
+        return Api.get("/managers/" + managerId + "/notifications").body().get("total").asLong();
     }
 
     private List<String> queue() {
