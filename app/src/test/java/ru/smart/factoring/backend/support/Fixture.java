@@ -3,6 +3,7 @@ package ru.smart.factoring.backend.support;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.JsonNode;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -26,10 +27,13 @@ public final class Fixture {
     }
 
     /**
-     * Запускает прогон и ждёт его завершения; возвращает прогон из GET /runs/{id}.
+     * Запускает прогон и ждёт его завершения; возвращает прогон из GET /runs/{id}. Тесты прогоняют те же данные по
+     * нескольку раз, поэтому - с «Прогнать заново» (force), если тест не задал его сам (П4-3).
      */
     public static JsonNode run(final Map<String, Object> request) throws InterruptedException {
-        final Api.Response started = Api.post("/runs", request);
+        final Map<String, Object> body = new HashMap<>(request);
+        body.putIfAbsent("force", true);
+        final Api.Response started = Api.post("/runs", body);
         if (started.status() != 202) {
             throw new AssertionError("Запуск прогона: " + started.status() + " " + started.body());
         }

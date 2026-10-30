@@ -80,6 +80,11 @@ public class ExplainerService implements Explainer {
     }
 
     @Override
+    public String textsVersion() {
+        return provider() + ":" + hash(reasonsPrompt + "\n" + draftPrompt);
+    }
+
+    @Override
     @SuppressWarnings("checkstyle:IllegalCatch")
     public Texts explain(final DecisionEngine.Decision decision) {
         final ExplanationFacts facts = ExplanationFacts.of(decision, buyerName(decision.state().upd().buyerId()));

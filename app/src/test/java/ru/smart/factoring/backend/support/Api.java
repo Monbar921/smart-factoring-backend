@@ -24,6 +24,8 @@ public final class Api {
     /**
      * Тесты со своим контекстом Spring (другой порт) переключают клиент на свой сервер и возвращают обратно в @AfterAll.
      */
+    private static final java.util.Base64.Encoder BASE64 = java.util.Base64.getUrlEncoder().withoutPadding();
+
     public static void usePort(final int port) {
         client = clientFor(port);
     }
@@ -46,6 +48,18 @@ public final class Api {
             spec.body(JSON.writeValueAsString(body));
         }
         return spec.exchange((request, response) -> read(response.getStatusCode(), response.getBody().readAllBytes()));
+    }
+
+    /**
+     * POST с access token: payload токена как есть, подпись не проверяется (её проверяет gateway).
+     */
+    public static Response postAs(final String path, final Object body, final String tokenPayload) {
+        final String token = BASE64.encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8)) + "."
+                + BASE64.encodeToString(tokenPayload.getBytes(StandardCharsets.UTF_8)) + ".sig";
+        return client.post().uri(path).contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + token)
+                .body(JSON.writeValueAsString(body))
+                .exchange((request, response) -> read(response.getStatusCode(), response.getBody().readAllBytes()));
     }
 
     public static Response delete(final String path) {

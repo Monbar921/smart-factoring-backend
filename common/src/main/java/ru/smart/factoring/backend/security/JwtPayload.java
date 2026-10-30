@@ -36,6 +36,13 @@ public record JwtPayload(Map<String, Object> claims) {
         return string("preferred_username");
     }
 
+    /**
+     * Клиент Keycloak, которому выдан токен (azp): по нему узнаётся гостевой вход «Запуск демо».
+     */
+    public String authorizedParty() {
+        return string("azp");
+    }
+
     public String email() {
         return string("email");
     }

@@ -107,7 +107,80 @@ class RunApiTest extends AbstractSmartFactoringBackendTest {
 
         assertThat(response.status()).isEqualTo(409);
         assertThat(response.body().get("code").asString()).isEqualTo("RUN_ALREADY_RUNNING");
-        assertThat(response.body().get("message").asString()).isEqualTo("Прогон уже выполняется");
+        assertThat(response.body().get("message").asString()).startsWith("Прогон уже идёт: прогон № ");
+        assertThat(attempts()).containsExactly("REJECTED RUN_ALREADY_RUNNING null");
+    }
+
+    @Test
+    void sameDataIsNotRunAgainWithoutConfirmation() throws InterruptedException {
+        insertSourceUpd();
+        final long first = Api.post("/runs", Map.of()).body().get("runId").asLong();
+        awaitFinished(first);
+
+        // П4-3: тот же отпечаток - отказ со ссылкой на прежний результат
+        final Api.Response again = Api.post("/runs", Map.of());
+        assertThat(again.status()).isEqualTo(409);
+        assertThat(again.body().get("code").asString()).isEqualTo("RUN_ALREADY_DONE");
+        assertThat(again.body().get("message").asString()).startsWith("Эти данные уже прогнаны. Результат — прогон № " + first + " от ");
+        assertThat(again.body().get("details").get("runId").asLong()).isEqualTo(first);
+
+        // «Прогнать заново» с подтверждением
+        final Api.Response forced = Api.post("/runs", Map.of("force", true));
+        assertThat(forced.status()).isEqualTo(202);
+        awaitFinished(forced.body().get("runId").asLong());
+
+        // данные изменились - другой отпечаток, запуск без вопросов
+        jdbcTemplate.update("""
+                insert into manual_upload_upd (client_inn, buyer_inn, contract_number, number, upd_date, amount)
+                values ('7710000001', '7720000002', 'Д-1', 'U-2', date '2026-10-24', 2000000)""");
+        final Api.Response changed = Api.post("/runs", Map.of());
+        assertThat(changed.status()).isEqualTo(202);
+        awaitFinished(changed.body().get("runId").asLong());
+
+        assertThat(attempts()).containsExactly("STARTED null null", "STARTED null null", "REJECTED RUN_ALREADY_DONE null",
+                "STARTED null null");
+    }
+
+    @Test
+    void guestCannotStartRun() {
+        insertSourceUpd();
+
+        // П4-1: роли в токене есть, но токен гостевого входа - только просмотр
+        final Api.Response response = Api.postAs("/runs", Map.of(), """
+                {"preferred_username":"demo","azp":"smart-factoring-guest","realm_access":{"roles":["operator","manager"]}}""");
+
+        assertThat(response.status()).isEqualTo(403);
+        assertThat(response.body().get("message").asString()).isEqualTo("Запуск прогона доступен менеджеру");
+        assertThat(jdbcTemplate.queryForObject("select count(*) from run", Long.class)).isZero();
+        assertThat(attempts()).containsExactly("REJECTED FORBIDDEN гость");
+    }
+
+    @Test
+    void historyShowsWhoStartedRun() throws InterruptedException {
+        insertSourceUpd();
+
+        final Api.Response started = Api.postAs("/runs", Map.of(), """
+                {"preferred_username":"ivanov","azp":"smart-factoring-ui","realm_access":{"roles":["manager","operator","offline_access"]}}""");
+        awaitFinished(started.body().get("runId").asLong());
+
+        final JsonNode item = Api.get("/runs").body().get("items").get(0);
+        assertThat(item.get("initiator").asString()).isEqualTo("ivanov");
+        assertThat(item.get("initiatorRole").asString()).isEqualTo("manager, operator");
+        assertThat(Api.get("/runs/attempts").body().get("items").get(0).get("initiator").asString()).isEqualTo("ivanov");
+    }
+
+    /**
+     * Журнал попыток запуска (П4-6), новые сверху: «исход причина роль».
+     */
+    private List<String> attempts() {
+        final List<String> rows = new java.util.ArrayList<>();
+        Api.get("/runs/attempts").body().get("items").forEach(item -> rows.add(item.get("outcome").asString() + " "
+                + text(item.get("reason")) + " " + text(item.get("initiatorRole"))));
+        return rows;
+    }
+
+    private static String text(final JsonNode node) {
+        return node == null || node.isNull() ? "null" : node.asString();
     }
 
     @Test

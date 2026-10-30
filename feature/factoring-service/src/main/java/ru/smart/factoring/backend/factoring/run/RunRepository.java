@@ -27,28 +27,82 @@ public class RunRepository {
     /**
      * Новый прогон в статусе RUNNING. Второй одновременный прогон не пускает индекс ux_run_single_running (ПР-3).
      */
+    @SuppressWarnings("checkstyle:ParameterNumber")
     public long insertRunning(final LocalDate calcDate, final String clientInnsJson, final InitiatorType initiatorType,
-                              final String initiator, final LocalDate dataDate, final LocalDate snapshotDate,
-                              final String parametersJson) {
+                              final Initiator initiator, final LocalDate dataDate, final LocalDate snapshotDate,
+                              final String parametersJson, final String fingerprint) {
         try {
             return jdbc.sql("""
-                            insert into run (status, calc_date, client_inns, initiator_type, initiator, data_date, snapshot_date, parameters)
-                            values ('RUNNING', :calcDate, cast(:clientInns as jsonb), :initiatorType, :initiator, :dataDate, :snapshotDate,
-                                    cast(:parameters as jsonb))
+                            insert into run (status, calc_date, client_inns, initiator_type, initiator, initiator_role, data_date,
+                                             snapshot_date, parameters, fingerprint)
+                            values ('RUNNING', :calcDate, cast(:clientInns as jsonb), :initiatorType, :initiator, :initiatorRole, :dataDate,
+                                    :snapshotDate, cast(:parameters as jsonb), :fingerprint)
                             returning id""")
                     .param("calcDate", calcDate)
                     .param("clientInns", clientInnsJson)
                     .param("initiatorType", initiatorType.name())
-                    .param("initiator", initiator)
+                    .param("initiator", initiator.username())
+                    .param("initiatorRole", initiator.role())
+                    .param("fingerprint", fingerprint)
                     .param("dataDate", dataDate)
                     .param("snapshotDate", snapshotDate)
                     .param("parameters", parametersJson)
                     .query(Long.class)
                     .single();
         } catch (DuplicateKeyException e) {
-            throw new ApiException("RUN_ALREADY_RUNNING", HttpStatus.CONFLICT, "Прогон уже выполняется",
-                    findRunningId().<Map<String, Object>>map(id -> Map.of("runId", id)).orElse(Map.of()));
+            throw alreadyRunning(findRunningId().orElse(null));
         }
+    }
+
+    /**
+     * Второй запуск во время идущего прогона (ПР-3, П4-5) - со ссылкой на идущий.
+     */
+    public static ApiException alreadyRunning(final Long runningId) {
+        return new ApiException("RUN_ALREADY_RUNNING", HttpStatus.CONFLICT,
+                runningId != null ? "Прогон уже идёт: прогон № " + runningId : "Прогон уже идёт",
+                runningId != null ? Map.of("runId", runningId) : Map.of());
+    }
+
+    /**
+     * Последний успешный прогон с тем же отпечатком (П4-3).
+     */
+    public Optional<RunRow> findDoneByFingerprint(final String fingerprint) {
+        return jdbc.sql("""
+                        select * from run where fingerprint = :fingerprint and status in ('DONE', 'DONE_WITH_WARNINGS')
+                        order by id desc limit 1""")
+                .param("fingerprint", fingerprint)
+                .query(RunRow.class)
+                .optional();
+    }
+
+    /**
+     * Попытка запуска - в журнал попыток (П4-6), и запущенная, и отклонённая.
+     */
+    public void insertAttempt(final Initiator initiator, final InitiatorType initiatorType, final String outcome, final String reason,
+                              final String message, final Long runId) {
+        jdbc.sql("""
+                        insert into run_attempt (initiator, initiator_role, initiator_type, outcome, reason, message, run_id)
+                        values (:initiator, :initiatorRole, :initiatorType, :outcome, :reason, :message, :runId)""")
+                .param("initiator", initiator.username())
+                .param("initiatorRole", initiator.role())
+                .param("initiatorType", initiatorType.name())
+                .param("outcome", outcome)
+                .param("reason", reason)
+                .param("message", message)
+                .param("runId", runId)
+                .update();
+    }
+
+    public List<AttemptRow> findAttempts(final int page, final int size) {
+        return jdbc.sql("select * from run_attempt order by id desc limit :size offset :offset")
+                .param("size", size)
+                .param("offset", (long) page * size)
+                .query(AttemptRow.class)
+                .list();
+    }
+
+    public long countAttempts() {
+        return jdbc.sql("select count(*) from run_attempt").query(Long.class).single();
     }
 
     public void insertSteps(final long runId, final List<Integer> stepNos) {
@@ -150,8 +204,23 @@ public class RunRepository {
     }
 
     public record RunRow(long id, String status, LocalDate calcDate, String clientInns, String initiatorType, String initiator,
-                         OffsetDateTime startedAt, OffsetDateTime finishedAt, LocalDate dataDate, LocalDate snapshotDate,
-                         String parameters, String modelVersions, String summary, String errorMessage) {
+                         String initiatorRole, OffsetDateTime startedAt, OffsetDateTime finishedAt, LocalDate dataDate,
+                         LocalDate snapshotDate, String parameters, String modelVersions, String summary, String errorMessage) {
+    }
+
+    public record AttemptRow(long id, OffsetDateTime attemptedAt, String initiator, String initiatorRole, String outcome,
+                             String reason, String message, Long runId) {
+    }
+
+    /**
+     * Кто запускает прогон.
+     *
+     * @param username логин; null - вызов API без токена
+     * @param role     роли: operator, manager, «гость»
+     * @param guest    гостевой вход «Запуск демо»: только просмотр (П4-1)
+     */
+    public record Initiator(String username, String role, boolean guest) {
+        public static final Initiator NONE = new Initiator(null, null, false);
     }
 
     public record StepRow(long runId, int stepNo, String status, OffsetDateTime startedAt, OffsetDateTime finishedAt,

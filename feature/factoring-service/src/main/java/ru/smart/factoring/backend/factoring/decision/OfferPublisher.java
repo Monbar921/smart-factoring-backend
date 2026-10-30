@@ -71,7 +71,17 @@ public class OfferPublisher {
                             message_draft = :messageDraft, text_source = :textSource, updated_at = now()
                         where id = :id""", params);
                 offerId = existing.id();
-                if (ChronoUnit.DAYS.between(existing.createdCalcDate(), context.getCalcDate()) >= context.getParameters().reminderDays()) {
+                final Economics.Result economics = decision.finalEconomics();
+                // П4-4: повторный прогон уведомляет только об изменившихся условиях, те же самые предложения - без уведомления
+                if (economics.ead().compareTo(existing.ead()) != 0 || economics.price().compareTo(existing.price()) != 0
+                        || economics.termDays() != existing.termDays()) {
+                    notifications.add(notification(runId, "OFFER_CHANGED", offerId, decision, Map.of(
+                            "updNumber", decision.state().upd().number(),
+                            "ead", economics.ead(),
+                            "previousEad", existing.ead())));
+                }
+                if (!context.getCalcDate().equals(existing.remindedCalcDate())
+                        && ChronoUnit.DAYS.between(existing.createdCalcDate(), context.getCalcDate()) >= context.getParameters().reminderDays()) {
                     reminders++;
                     notifications.add(notification(runId, "REMINDER", offerId, decision, Map.of(
                             "updNumber", decision.state().upd().number(),
