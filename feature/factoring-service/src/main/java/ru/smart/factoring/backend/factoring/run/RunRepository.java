@@ -59,7 +59,7 @@ public class RunRepository {
      */
     public static ApiException alreadyRunning(final Long runningId) {
         return new ApiException("RUN_ALREADY_RUNNING", HttpStatus.CONFLICT,
-                runningId != null ? "Прогон уже идёт: прогон № " + runningId : "Прогон уже идёт",
+                runningId != null ? "Анализ дебиторки уже идёт: запуск № " + runningId : "Анализ дебиторки уже идёт",
                 runningId != null ? Map.of("runId", runningId) : Map.of());
     }
 

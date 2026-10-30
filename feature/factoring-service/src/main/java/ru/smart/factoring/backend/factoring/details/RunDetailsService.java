@@ -126,14 +126,14 @@ public class RunDetailsService {
     @SuppressWarnings("checkstyle:MagicNumber")
     public UpdTraceDto trace(final long runId, final long updId) {
         final RunUpdDto upd = rows(runId, updId).stream().findFirst()
-                .orElseThrow(() -> ApiException.notFound("УПД в прогоне " + runId, updId));
+                .orElseThrow(() -> ApiException.notFound("УПД в запуске " + runId, updId));
         final MapSqlParameterSource params = new MapSqlParameterSource().addValue("runId", runId).addValue("updId", updId);
         final List<TraceStepDto> steps = new ArrayList<>();
 
         final Map<String, Object> loaded = jdbc.queryForMap("""
                 select u.first_loaded_run_id, u.contract_id, k.number as contract_number, k.deferral_days
                 from upd u left join contract k on k.id = u.contract_id where u.id = :updId""", params);
-        steps.add(new TraceStepDto(1, "Загрузка данных", "Загружен в прогоне " + loaded.get("first_loaded_run_id")
+        steps.add(new TraceStepDto(1, "Загрузка данных", "Загружен в запуске " + loaded.get("first_loaded_run_id")
                 + (upd.buyer() != null && upd.buyer().id() == null ? "; покупателя нет в хранилище внешних данных" : ""), loaded));
 
         final List<Map<String, Object>> allocations = jdbc.queryForList("""
@@ -243,7 +243,7 @@ public class RunDetailsService {
         final Integer count = jdbc.queryForObject("select count(*) from run where id = :id", new MapSqlParameterSource("id", runId),
                 Integer.class);
         if (count == null || count == 0) {
-            throw ApiException.notFound("Прогон", runId);
+            throw ApiException.notFound("Запуск", runId);
         }
     }
 

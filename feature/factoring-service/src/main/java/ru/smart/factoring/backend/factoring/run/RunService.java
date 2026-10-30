@@ -102,7 +102,7 @@ public class RunService {
     @SuppressWarnings("checkstyle:IllegalCatch")
     private long launch(final StartRunRequest request, final InitiatorType initiatorType, final RunRepository.Initiator initiator) {
         if (initiator.guest()) {
-            throw new ApiException("FORBIDDEN", HttpStatus.FORBIDDEN, "Запуск прогона доступен менеджеру", Map.of());
+            throw new ApiException("FORBIDDEN", HttpStatus.FORBIDDEN, "Запуск анализа дебиторки доступен менеджеру", Map.of());
         }
         final Long running = runRepository.findRunningId().orElse(null);
         if (running != null) {
@@ -117,7 +117,7 @@ public class RunService {
         final String fingerprint = runFingerprint.of(calcDate, clientInns, dataDate, snapshotDate, parameters);
         if (fingerprint != null && !Boolean.TRUE.equals(request.force())) {
             runRepository.findDoneByFingerprint(fingerprint).ifPresent(done -> {
-                throw new ApiException("RUN_ALREADY_DONE", HttpStatus.CONFLICT, "Эти данные уже прогнаны. Результат — прогон № "
+                throw new ApiException("RUN_ALREADY_DONE", HttpStatus.CONFLICT, "Эти данные уже проанализированы. Результат — запуск № "
                         + done.id() + " от " + done.startedAt().atZoneSameInstant(ZoneId.systemDefault()).format(STARTED_AT),
                         Map.of("runId", done.id(), "startedAt", done.startedAt().toString()));
             });
@@ -134,14 +134,14 @@ public class RunService {
             } catch (RuntimeException e) {
                 // сбой самого исполнителя (например, БД недоступна): прогон не должен остаться RUNNING
                 log.error("Прогон {} прерван", runId, e);
-                runRepository.stopInterrupted("Прогон прерван: " + e.getMessage());
+                runRepository.stopInterrupted("Анализ дебиторки прерван: " + e.getMessage());
             }
         });
         return runId;
     }
 
     public RunDto get(final long runId) {
-        final RunRepository.RunRow run = runRepository.findById(runId).orElseThrow(() -> ApiException.notFound("Прогон", runId));
+        final RunRepository.RunRow run = runRepository.findById(runId).orElseThrow(() -> ApiException.notFound("Запуск", runId));
         final Map<Integer, String> names = runExecutor.steps().stream()
                 .collect(Collectors.toMap(RunStep::stepNo, RunStep::name));
         final List<RunStepDto> steps = runRepository.findSteps(runId).stream()
@@ -171,7 +171,7 @@ public class RunService {
     }
 
     public PageDto<RunLogEntryDto> log(final long runId, final String level, final Integer stepNo, final int page, final int size) {
-        runRepository.findById(runId).orElseThrow(() -> ApiException.notFound("Прогон", runId));
+        runRepository.findById(runId).orElseThrow(() -> ApiException.notFound("Запуск", runId));
         final int pageSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         final String where = " where run_id = :runId and (cast(:level as varchar) is null or level = :level)"
                 + " and (cast(:stepNo as smallint) is null or step_no = :stepNo)";
@@ -201,9 +201,9 @@ public class RunService {
      */
     @EventListener(ApplicationReadyEvent.class)
     public void stopInterruptedRuns() {
-        runRepository.stopInterrupted("Прогон прерван перезапуском backend").forEach(runId -> {
+        runRepository.stopInterrupted("Анализ дебиторки прерван перезапуском backend").forEach(runId -> {
             log.warn("Прогон {} прерван перезапуском и переведён в STOPPED", runId);
-            runLog.error(runId, null, "RUN_INTERRUPTED", "Прогон прерван перезапуском backend");
+            runLog.error(runId, null, "RUN_INTERRUPTED", "Анализ дебиторки прерван перезапуском backend");
         });
     }
 

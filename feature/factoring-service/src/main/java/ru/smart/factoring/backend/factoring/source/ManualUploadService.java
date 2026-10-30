@@ -714,7 +714,7 @@ public class ManualUploadService {
     private void ensureNoRunningRun() {
         final Integer running = jdbc.queryForObject("select count(*) from run where status = 'RUNNING'", Map.of(), Integer.class);
         if (running != null && running > 0) {
-            throw new ApiException("RUN_ALREADY_RUNNING", HttpStatus.CONFLICT, "Прогон уже выполняется: импорт невозможен", Map.of());
+            throw new ApiException("RUN_ALREADY_RUNNING", HttpStatus.CONFLICT, "Идёт анализ дебиторки: импорт невозможен", Map.of());
         }
     }
 
