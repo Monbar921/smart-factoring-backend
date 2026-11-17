@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ui-stand",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd /d C:/Users/yqema/IdeaProjects/smart-factoring-ui && set GATEWAY_URL=http://188.127.254.192:8090&& set VITE_KEYCLOAK_URL=http://188.127.254.192:8180&& set VITE_GUEST_LOGIN=true&& npm run dev"
+      ],
+      "port": 5173
+    }
+  ]
+}
