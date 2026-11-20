@@ -47,3 +47,6 @@ local_config
 
 # ZIP для импорта данных ручной загрузки (docs/claude/tools/build_manual_upload_zips.py)
 /manual-upload/
+
+# локальные настройки с паролями - только .env.example в git
+.env

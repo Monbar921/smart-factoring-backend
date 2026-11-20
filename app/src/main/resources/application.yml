@@ -36,6 +36,12 @@ spring:
       schema: ${POSTGRES_SCHEMA:smart_factoring_test}
 
 smart-factoring:
+  access:
+    # карточку и предложения видит только менеджер клиента (НФР-9, Р-75); false - все видят всех, как в эмуляторе CRM
+    manager-scope: ${MANAGER_SCOPE:true}
+    # «логин Keycloak:код менеджера» через запятую, код - из managers.csv: anna:M1,boris:M2.
+    # Роль supervisor видит всех менеджеров, гостевой вход - всех, только просмотр
+    manager-logins: ${MANAGER_LOGINS:}
   manual-upload:
     # каталог на сервере, из которого POST /manual-upload берёт выгрузку генератора по относительному пути
     import-dir: ${MANUAL_UPLOAD_DIR:/data/manual-upload}
@@ -48,8 +54,11 @@ smart-factoring:
     # для stub: каталог с stub_buyer_scores.csv и stub_upd_scores.csv (необязательно)
     stub-scores-dir: ${ML_STUB_SCORES_DIR:}
   llm:
-    # stub - шаблонные тексты без LLM, gigachat - GigaChat, off - без черновика (Р-12)
+    # stub - шаблонные тексты без LLM, gigachat - GigaChat, onprem - LLM в контуре банка с API вида OpenAI (Р-74),
+    # off - без черновика (Р-12)
     mode: ${LLM_MODE:stub}
+    # названия клиента и покупателя, ИНН, ОГРН и номер УПД уходят в LLM метками и подставляются обратно (Р-73)
+    mask: ${LLM_MASK:true}
     # одновременных запросов к LLM: сотни карточек последовательно не уложатся в 10 минут (НФР-1.1);
     # не больше лимита тарифа GigaChat (Freemium - 1 поток), иначе 429
     parallelism: ${LLM_PARALLELISM:8}
@@ -64,3 +73,14 @@ smart-factoring:
       timeout: ${GIGACHAT_TIMEOUT:60s}
       # PEM корневого сертификата НУЦ Минцифры (Russian Trusted Root CA): без него TLS к GigaChat не пройдёт
       ca-cert: ${GIGACHAT_CA_CERT:}
+    # LLM в контуре банка (Р-74): vLLM, Ollama, llama.cpp server, LM Studio - любой сервер с API вида OpenAI
+    onprem:
+      # до /chat/completions: http://llm:8000/v1 (vLLM), http://ollama:11434/v1 (Ollama)
+      api-url: ${ONPREM_LLM_URL:}
+      # ключ, если сервер его требует
+      api-key: ${ONPREM_LLM_API_KEY:}
+      # имя модели на сервере (GET /models), например t-tech/T-lite-it-1.0 или qwen2.5:7b-instruct
+      model: ${ONPREM_LLM_MODEL:}
+      timeout: ${ONPREM_LLM_TIMEOUT:120s}
+      # PEM корневого сертификата корпоративного УЦ, если сервер по HTTPS
+      ca-cert: ${ONPREM_LLM_CA_CERT:}

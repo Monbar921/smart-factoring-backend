@@ -808,4 +808,11 @@
         </sql>
     </changeSet>
 
+    <changeSet id="SMF-33-llm-cache-provider-length" author="Monbar921">
+        <sql endDelimiter=";">
+            -- onprem:имя модели на сервере:версия - имена моделей vLLM вида Qwen/Qwen2.5-7B-Instruct не влезали в 32 (Р-74)
+            alter table "${schema}".llm_text_cache alter column provider type varchar(256);
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

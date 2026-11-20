@@ -19,7 +19,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 final class FakeGigaChat {
     static final String REASONS = "Причины от GigaChat";
-    static final String DRAFT = "Черновик от GigaChat";
+    /** с меткой покупателя: backend должен подставить настоящее название (Р-73) */
+    static final String DRAFT = "Черновик от GigaChat для BUYER_1";
     /**
      * Какой промпт пришёл - по началу его первой строки из тех же файлов, что читает backend: правка текста промптов
      * не ломает заглушку (раньше она искала фразы, которых в новых промптах нет).
