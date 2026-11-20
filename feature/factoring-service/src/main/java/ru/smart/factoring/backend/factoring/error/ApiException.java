@@ -25,6 +25,13 @@ public class ApiException extends RuntimeException {
         return new ApiException("NOT_FOUND", HttpStatus.NOT_FOUND, what + " " + id + " не найден", Map.of("id", id));
     }
 
+    /**
+     * 403 в том же виде, что отказ gateway: code FORBIDDEN.
+     */
+    public static ApiException forbidden(final String message) {
+        return new ApiException("FORBIDDEN", HttpStatus.FORBIDDEN, message, Map.of());
+    }
+
     public static ApiException validation(final String message) {
         return new ApiException("VALIDATION_ERROR", HttpStatus.BAD_REQUEST, message, Map.of());
     }

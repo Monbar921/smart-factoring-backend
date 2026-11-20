@@ -54,12 +54,26 @@ public final class Api {
      * POST с access token: payload токена как есть, подпись не проверяется (её проверяет gateway).
      */
     public static Response postAs(final String path, final Object body, final String tokenPayload) {
-        final String token = BASE64.encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8)) + "."
-                + BASE64.encodeToString(tokenPayload.getBytes(StandardCharsets.UTF_8)) + ".sig";
-        return client.post().uri(path).contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + token)
-                .body(JSON.writeValueAsString(body))
+        final RestClient.RequestBodySpec spec = client.post().uri(path).contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + token(tokenPayload));
+        if (body != null) {
+            spec.body(JSON.writeValueAsString(body));
+        }
+        return spec.exchange((request, response) -> read(response.getStatusCode(), response.getBody().readAllBytes()));
+    }
+
+    /**
+     * GET с access token, как {@link #postAs(String, Object, String)}.
+     */
+    public static Response getAs(final String path, final String tokenPayload) {
+        return client.get().uri(path)
+                .header("Authorization", "Bearer " + token(tokenPayload))
                 .exchange((request, response) -> read(response.getStatusCode(), response.getBody().readAllBytes()));
+    }
+
+    private static String token(final String payload) {
+        return BASE64.encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8)) + "."
+                + BASE64.encodeToString(payload.getBytes(StandardCharsets.UTF_8)) + ".sig";
     }
 
     public static Response delete(final String path) {

@@ -63,12 +63,27 @@ class GigaChatModeTest extends AbstractSmartFactoringBackendTest {
         final JsonNode run = Fixture.run(Map.of());
 
         assertThat(run.get("status").asString()).isEqualTo("DONE");
-        assertThat(run.get("modelVersions").get("llm").asString()).isEqualTo("gigachat:GigaChat-2:v3");
+        assertThat(run.get("modelVersions").get("llm").asString()).isEqualTo("gigachat:GigaChat-2:v4");
         final int offers = Fixture.metrics(run, 5).get("offers").asInt();
         assertThat(offers).isEqualTo(12);
         assertThat(jdbcTemplate.queryForList("select distinct reasons_text from offer", String.class)).containsExactly(FakeGigaChat.REASONS);
-        assertThat(jdbcTemplate.queryForList("select distinct message_draft from offer", String.class)).containsExactly(FakeGigaChat.DRAFT);
+        // метка покупателя из ответа LLM заменена настоящим названием (Р-73)
+        assertThat(jdbcTemplate.queryForList("""
+                select o.message_draft = 'Черновик от GigaChat для ' || b.name
+                from offer o join buyer b on b.id = o.buyer_id""", Boolean.class)).hasSize(offers).containsOnly(true);
         assertThat(GIGA_CHAT.chatRequests).hasSize(offers * 2);
+        // в LLM не ушли ни названия клиентов и покупателей, ни ИНН, ни номера УПД - только метки (Р-73)
+        final List<String> secrets = jdbcTemplate.queryForList("""
+                select c.name from offer o join client c on c.id = o.client_id
+                union select b.inn from offer o join buyer b on b.id = o.buyer_id
+                union select b.name from offer o join buyer b on b.id = o.buyer_id where b.name not like 'ИНН %'
+                union select u.number from offer o join upd u on u.id = o.upd_id""", String.class);
+        assertThat(secrets).hasSizeGreaterThan(offers);
+        // тело запроса - JSON: кавычки в названиях («ООО "БРИГ"») в нём экранированы
+        final String[] inJson = secrets.stream().map(secret -> secret.replace("\"", "\\\"")).toArray(String[]::new);
+        assertThat(GIGA_CHAT.chatRequests).allSatisfy(request -> assertThat(request)
+                .contains("CLIENT_1", "INN_1", "UPD_1")
+                .doesNotContain(inJson));
         assertThat(Fixture.metrics(run, 5).get("textsBySource").get("LLM").asInt()).isEqualTo(offers);
         assertThat(log(run, "LLM_TEXTS")).hasSize(1);
         assertThat(log(run, "LLM_ERROR")).isEmpty();

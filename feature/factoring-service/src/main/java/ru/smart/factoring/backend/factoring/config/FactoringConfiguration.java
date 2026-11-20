@@ -8,6 +8,8 @@ import ru.smart.factoring.backend.factoring.llm.DisabledLlmClient;
 import ru.smart.factoring.backend.factoring.llm.GigaChatClient;
 import ru.smart.factoring.backend.factoring.llm.LlmClient;
 import ru.smart.factoring.backend.factoring.llm.LlmProperties;
+import ru.smart.factoring.backend.factoring.llm.MaskingLlmClient;
+import ru.smart.factoring.backend.factoring.llm.OnPremLlmClient;
 import ru.smart.factoring.backend.factoring.ml.HttpModelClient;
 import ru.smart.factoring.backend.factoring.ml.ModelClient;
 import ru.smart.factoring.backend.factoring.ml.ModelProperties;
@@ -50,16 +52,22 @@ public class FactoringConfiguration {
     }
 
     /**
-     * LLM: gigachat - GigaChat API, stub и off - без обращений к LLM (Р-12, Р-48).
-     * Один клиент на прогон и на запросы сервиса моделей: общий токен и общий предел одновременных запросов.
+     * LLM: gigachat - GigaChat API, onprem - LLM в контуре банка с API вида OpenAI (Р-74), stub и off - без обращений
+     * к LLM (Р-12, Р-48). Один клиент на прогон и на запросы сервиса моделей: общий токен и общий предел одновременных
+     * запросов. С маскированием (LLM_MASK, по умолчанию да) ИНН и ОГРН в любом запросе уходят метками (Р-73).
      */
     @Bean
     public LlmClient llmClient(final LlmProperties properties) {
         final String mode = properties.mode() == null ? "stub" : properties.mode().toLowerCase(Locale.ROOT);
-        if ("gigachat".equals(mode)) {
-            return new GigaChatClient(properties.gigachat(), llmParallelism(properties));
+        final LlmClient client = switch (mode) {
+            case "gigachat" -> new GigaChatClient(properties.gigachat(), llmParallelism(properties));
+            case "onprem" -> new OnPremLlmClient(properties.onprem(), llmParallelism(properties));
+            default -> null;
+        };
+        if (client == null) {
+            return new DisabledLlmClient(mode);
         }
-        return new DisabledLlmClient(mode);
+        return properties.masked() ? new MaskingLlmClient(client) : client;
     }
 
     private static int llmParallelism(final LlmProperties properties) {

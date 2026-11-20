@@ -27,8 +27,9 @@ import java.util.stream.Collectors;
  * Тексты карточки предложения (п. 5.3, Р-12):
  * <ul>
  *     <li>stub - шаблонные тексты по фактам предложения, без LLM (по умолчанию, пока нет ключа GigaChat);</li>
- *     <li>gigachat - GigaChat ({@link LlmClient}) по промптам из classpath:llm/*.txt; ответы кешируются по хешу входа (Р-7),
- *     чтобы повторный прогон не обращался к LLM и давал те же карточки;</li>
+ *     <li>gigachat - GigaChat, onprem - LLM в контуре банка (Р-74), обе через {@link LlmClient} по промптам
+ *     из classpath:llm/*.txt; ответы кешируются по хешу входа (Р-7), чтобы повторный прогон не обращался к LLM и давал
+ *     те же карточки. Названия, ИНН и номер УПД уходят в LLM метками (Р-73, {@link Pseudonyms});</li>
  *     <li>off, а также сбой LLM или ответ, заменённый цензурой GigaChat, - причины шаблоном, черновика нет:
  *     предложение не блокируется.</li>
  * </ul>
@@ -40,7 +41,9 @@ public class ExplainerService implements Explainer {
      * Версия в «версиях моделей» прогона и в ключе кеша. Тексты промптов входят в ключ кеша сами (Р-60), версию меняем,
      * когда меняется формат фактов или проверка ответов.
      */
-    private static final String PROMPT_VERSION = "v3";
+    private static final String PROMPT_VERSION = "v4";
+    private static final String GIGACHAT = "gigachat";
+    private static final String ONPREM = "onprem";
     /** уровни риска словами - как в UI (замечания 28.10, П2-1) */
     private static final Map<String, String> RISK_WORDS = Map.of("A", "надёжный покупатель", "B", "средний риск",
             "C", "повышенный риск", "D", "высокий риск");
@@ -73,7 +76,7 @@ public class ExplainerService implements Explainer {
     @Override
     public String provider() {
         return switch (mode()) {
-            case "gigachat" -> "gigachat:" + llm.model() + ":" + PROMPT_VERSION;
+            case GIGACHAT, ONPREM -> mode() + ":" + llm.model() + ":" + PROMPT_VERSION;
             case "off" -> "off";
             default -> "stub";
         };
@@ -89,9 +92,11 @@ public class ExplainerService implements Explainer {
     public Texts explain(final DecisionEngine.Decision decision) {
         final ExplanationFacts facts = ExplanationFacts.of(decision, buyerName(decision.state().upd().buyerId()));
         return switch (mode()) {
-            case "gigachat" -> {
-                // в ключе - и тексты промптов: правка llm/*.txt сама сбрасывает кеш, без ручной смены PROMPT_VERSION
-                final String hash = hash(provider() + "\n" + reasonsPrompt + "\n" + draftPrompt + "\n" + facts.describe());
+            case GIGACHAT, ONPREM -> {
+                // в ключе - и тексты промптов: правка llm/*.txt сама сбрасывает кеш, без ручной смены PROMPT_VERSION;
+                // и маскирование: с ним и без него LLM пишет по-разному
+                final String hash = hash(provider() + "\n" + reasonsPrompt + "\n" + draftPrompt + "\nmask=" + properties.masked()
+                        + "\n" + facts.describe());
                 final Texts cached = cached(hash);
                 if (cached != null) {
                     yield cached;
@@ -110,7 +115,7 @@ public class ExplainerService implements Explainer {
                     cache(hash, texts);
                     yield texts;
                 } catch (RuntimeException e) {
-                    log.warn("GigaChat недоступен, карточка {} без черновика: {}", facts.updNumber(), e.getMessage());
+                    log.warn("LLM недоступна, карточка {} без черновика: {}", facts.updNumber(), e.getMessage());
                     yield new Texts(templateReasons(facts), null, Source.FAILED, e.getMessage());
                 }
             }
@@ -120,23 +125,34 @@ public class ExplainerService implements Explainer {
     }
 
     /**
-     * Ответ LLM, проверенный на домыслы (Р-59): с домыслом - один повтор с напоминанием, снова с домыслом - null (будет шаблон).
+     * Ответ LLM, проверенный на домыслы (Р-59), с настоящими значениями вместо меток (Р-73): с домыслом или искажённой
+     * меткой - один повтор с напоминанием, снова - null (будет шаблон).
      */
     private String checked(final String systemPrompt, final ExplanationFacts facts) {
-        final String input = facts.describe();
+        final Pseudonyms pseudonyms = Pseudonyms.of(facts, properties.masked());
+        final String input = pseudonyms.facts().describe();
         final String first = complete(systemPrompt, input);
-        final String found = FactCheck.unsupported(first, input);
+        final String found = problem(first, input, pseudonyms);
         if (found == null) {
-            return first;
+            return pseudonyms.restore(first);
         }
         log.info("Карточка {}: в ответе LLM домысел «{}…», запрос повторён", facts.updNumber(), found);
         final String second = complete(systemPrompt + RETRY_NOTE, input);
-        final String again = FactCheck.unsupported(second, input);
+        final String again = problem(second, input, pseudonyms);
         if (again == null) {
-            return second;
+            return pseudonyms.restore(second);
         }
         log.warn("Карточка {}: в ответе LLM снова домысел «{}…» - текст шаблоном", facts.updNumber(), again);
         return null;
+    }
+
+    /**
+     * Домысел (тема, которой нет во входе) или метка, которую не удалось подставить обратно; null - ответ годится.
+     * Домыслы ищем в ответе с метками: настоящее название («Надёжный партнёр») не должно сойти за домысел.
+     */
+    private static String problem(final String answer, final String input, final Pseudonyms pseudonyms) {
+        final String unsupported = FactCheck.unsupported(answer, input);
+        return unsupported != null ? unsupported : Pseudonyms.leftover(pseudonyms.restore(answer));
     }
 
     private String complete(final String systemPrompt, final String facts) {

@@ -8,12 +8,23 @@ import java.time.Duration;
  * Настройки LLM (Р-12): причины оценки простым языком и черновик сообщения клиенту (п. 5.3),
  * а также запросы сервиса моделей через backend (Р-48).
  *
- * @param mode        stub - шаблонные тексты без LLM, gigachat - GigaChat, off - без текстов (карточка без черновика)
+ * @param mode        stub - шаблонные тексты без LLM, gigachat - GigaChat, onprem - LLM в контуре банка с API вида OpenAI
+ *                    (Р-74), off - без текстов (карточка без черновика)
+ * @param mask        true - названия клиента и покупателя, ИНН и номер УПД уходят в LLM метками и подставляются обратно
+ *                    в ответ (Р-73); null - true
  * @param gigachat    настройки GigaChat для mode = gigachat
- * @param parallelism одновременных запросов к LLM: и потоков прогона, и предел одновременных запросов к GigaChat
+ * @param onprem      настройки on-prem LLM для mode = onprem
+ * @param parallelism одновременных запросов к LLM: и потоков прогона, и предел одновременных запросов к LLM
  */
 @ConfigurationProperties("smart-factoring.llm")
-public record LlmProperties(String mode, GigaChat gigachat, Integer parallelism) {
+public record LlmProperties(String mode, Boolean mask, GigaChat gigachat, OnPrem onprem, Integer parallelism) {
+
+    /**
+     * Маскировать данные клиентов перед LLM; по умолчанию - да.
+     */
+    public boolean masked() {
+        return mask == null || mask;
+    }
 
     /**
      * @param authKey  ключ авторизации (Base64 client_id:client_secret) из личного кабинета GigaChat API
@@ -26,5 +37,15 @@ public record LlmProperties(String mode, GigaChat gigachat, Integer parallelism)
      */
     public record GigaChat(String authKey, String scope, String authUrl, String apiUrl, String model, Duration timeout,
                            String caCert) {
+    }
+
+    /**
+     * @param apiUrl  адрес API вида OpenAI до /chat/completions, например http://llm:8000/v1 (vLLM) или http://ollama:11434/v1
+     * @param apiKey  ключ, если сервер его требует; пусто - без авторизации
+     * @param model   имя модели на сервере (GET /models)
+     * @param timeout таймаут одного запроса
+     * @param caCert  PEM-файл с корневым сертификатом корпоративного УЦ; пусто - только сертификаты JDK
+     */
+    public record OnPrem(String apiUrl, String apiKey, String model, Duration timeout, String caCert) {
     }
 }
