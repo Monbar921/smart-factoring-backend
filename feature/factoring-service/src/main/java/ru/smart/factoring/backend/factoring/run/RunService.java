@@ -24,6 +24,7 @@ import ru.smart.factoring.backend.api.run.StartRunRequest;
 import ru.smart.factoring.backend.api.run.StepStatus;
 import ru.smart.factoring.backend.factoring.error.ApiException;
 import ru.smart.factoring.backend.factoring.json.Json;
+import ru.smart.factoring.backend.factoring.offer.ManagerAccess;
 import ru.smart.factoring.backend.factoring.parameter.ParameterService;
 import ru.smart.factoring.backend.factoring.parameter.RunParameters;
 import ru.smart.factoring.backend.factoring.source.SourceCatalog;
@@ -140,7 +141,10 @@ public class RunService {
         return runId;
     }
 
-    public RunDto get(final long runId) {
+    /**
+     * Запуск. Менеджеру (scope не все) в списке клиентов запуска - только его клиенты (п. 1.1а-21).
+     */
+    public RunDto get(final long runId, final ManagerAccess.Scope scope) {
         final RunRepository.RunRow run = runRepository.findById(runId).orElseThrow(() -> ApiException.notFound("Запуск", runId));
         final Map<Integer, String> names = runExecutor.steps().stream()
                 .collect(Collectors.toMap(RunStep::stepNo, RunStep::name));
@@ -150,10 +154,20 @@ public class RunService {
                         json.readMap(step.metrics()), json.read(step.progress(), RunStepProgressDto.class)))
                 .toList();
         final Long durationMs = durationMs(run.startedAt(), run.finishedAt() != null ? run.finishedAt() : OffsetDateTime.now());
-        return new RunDto(run.id(), RunStatus.valueOf(run.status()), run.calcDate(), json.read(run.clientInns(), STRING_LIST),
+        return new RunDto(run.id(), RunStatus.valueOf(run.status()), run.calcDate(), ownInns(json.read(run.clientInns(), STRING_LIST), scope),
                 InitiatorType.valueOf(run.initiatorType()), run.initiator(), run.startedAt(), run.finishedAt(), durationMs,
                 run.dataDate(), run.snapshotDate(), json.readMap(run.modelVersions()), run.errorMessage(), steps,
                 comparison(run, durationMs));
+    }
+
+    private List<String> ownInns(final List<String> inns, final ManagerAccess.Scope scope) {
+        if (scope.all() || inns == null || inns.isEmpty()) {
+            return inns;
+        }
+        final Set<String> own = new HashSet<>(jdbc.sql("select c.inn from client c where " + ManagerAccess.clientCondition(scope, "c.id"))
+                .param(ManagerAccess.CODES_PARAM, scope.codes())
+                .query(String.class).list());
+        return inns.stream().filter(own::contains).toList();
     }
 
     public PageDto<RunListItemDto> list(final int page, final int size) {
@@ -170,12 +184,18 @@ public class RunService {
         return new PageDto<>(items, Math.max(page, 0), pageSize, runRepository.count());
     }
 
-    public PageDto<RunLogEntryDto> log(final long runId, final String level, final Integer stepNo, final int page, final int size) {
+    /**
+     * Журнал запуска. Менеджеру (scope не все) - записи о запуске в целом, о покупателях и о его клиентах: записи
+     * о чужом клиенте, его УПД и предложениях скрыты (НФР-9, п. 1.1а-21).
+     */
+    public PageDto<RunLogEntryDto> log(final long runId, final String level, final Integer stepNo, final int page, final int size,
+                                       final ManagerAccess.Scope scope) {
         runRepository.findById(runId).orElseThrow(() -> ApiException.notFound("Запуск", runId));
         final int pageSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         final String where = " where run_id = :runId and (cast(:level as varchar) is null or level = :level)"
-                + " and (cast(:stepNo as smallint) is null or step_no = :stepNo)";
+                + " and (cast(:stepNo as smallint) is null or step_no = :stepNo)" + ownLog(scope);
         final List<RunLogEntryDto> items = jdbc.sql("select * from run_log" + where + " order by id limit :size offset :offset")
+                .param(ManagerAccess.CODES_PARAM, scope.codes())
                 .param("runId", runId)
                 .param("level", level)
                 .param("stepNo", stepNo)
@@ -188,12 +208,24 @@ public class RunService {
                         json.readMap(rs.getString("details"))))
                 .list();
         final long total = jdbc.sql("select count(*) from run_log" + where)
+                .param(ManagerAccess.CODES_PARAM, scope.codes())
                 .param("runId", runId)
                 .param("level", level)
                 .param("stepNo", stepNo)
                 .query(Long.class)
                 .single();
         return new PageDto<>(items, Math.max(page, 0), pageSize, total);
+    }
+
+    private static String ownLog(final ManagerAccess.Scope scope) {
+        if (scope.all()) {
+            return "";
+        }
+        return " and (client_id is null or " + ManagerAccess.clientCondition(scope, "client_id") + ")"
+                + " and (upd_id is null or upd_id in (select lu.id from upd lu where "
+                + ManagerAccess.clientCondition(scope, "lu.client_id") + "))"
+                + " and (offer_id is null or offer_id in (select lo.id from offer lo where "
+                + ManagerAccess.clientCondition(scope, "lo.client_id") + "))";
     }
 
     /**

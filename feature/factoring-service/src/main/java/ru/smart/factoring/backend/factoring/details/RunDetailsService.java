@@ -19,6 +19,7 @@ import ru.smart.factoring.backend.api.run.RunLogEntryDto;
 import ru.smart.factoring.backend.factoring.decision.NoOfferReason;
 import ru.smart.factoring.backend.factoring.error.ApiException;
 import ru.smart.factoring.backend.factoring.json.Json;
+import ru.smart.factoring.backend.factoring.offer.ManagerAccess;
 import tools.jackson.core.type.TypeReference;
 
 import java.math.BigDecimal;
@@ -37,6 +38,9 @@ import java.util.stream.Collectors;
 /**
  * Детализация прогона для экрана процесса: воронка (ЭП-4), списки объектов и путь УПД по шагам (ЭП-5).
  * Объёмы прогона (тысячи УПД) позволяют фильтровать и листать в памяти.
+ * <p>
+ * Каждый метод получает {@link ManagerAccess.Scope}: менеджер видит только УПД, клиентов и покупателей своих клиентов
+ * (НФР-9, п. 1.1а-21), оператор и руководитель - всех.
  */
 @Service
 @RequiredArgsConstructor
@@ -69,8 +73,8 @@ public class RunDetailsService {
     private final NamedParameterJdbcTemplate jdbc;
     private final Json json;
 
-    public List<FunnelStageDto> funnel(final long runId) {
-        final List<RunUpdDto> open = rows(runId, null).stream().filter(row -> !"PAID".equals(row.paymentStatus())).toList();
+    public List<FunnelStageDto> funnel(final long runId, final ManagerAccess.Scope scope) {
+        final List<RunUpdDto> open = rows(runId, null, scope).stream().filter(row -> !"PAID".equals(row.paymentStatus())).toList();
         final List<FunnelStageDto> stages = new ArrayList<>();
         List<RunUpdDto> remaining = open;
         for (final FunnelStage stage : FunnelStage.values()) {
@@ -94,7 +98,7 @@ public class RunDetailsService {
     @SuppressWarnings("checkstyle:ParameterNumber")
     public PageDto<RunUpdDto> upds(final long runId, final Long clientId, final Long buyerId, final Integer category,
                                    final String decision, final String reason, final String stage, final String riskLevel,
-                                   final String paymentStatus, final int page, final int size) {
+                                   final String paymentStatus, final int page, final int size, final ManagerAccess.Scope scope) {
         final Predicate<RunUpdDto> filter = row -> (clientId == null || clientId.equals(row.client().id()))
                 && (buyerId == null || row.buyer() != null && buyerId.equals(row.buyer().id()))
                 && (category == null || category.equals(row.category()))
@@ -103,7 +107,7 @@ public class RunDetailsService {
                 && (stage == null || (reason != null ? stage.equals(row.stage()) : passed(row, stage)))
                 && (riskLevel == null || row.riskLevel() != null && riskLevel.equals(row.riskLevel().name()))
                 && (paymentStatus == null || paymentStatus.equals(row.paymentStatus()));
-        final List<RunUpdDto> filtered = rows(runId, null).stream().filter(filter).toList();
+        final List<RunUpdDto> filtered = rows(runId, null, scope).stream().filter(filter).toList();
         final int pageSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         final int from = Math.min(Math.max(page, 0) * pageSize, filtered.size());
         return new PageDto<>(filtered.subList(from, Math.min(from + pageSize, filtered.size())), Math.max(page, 0), pageSize,
@@ -124,8 +128,8 @@ public class RunDetailsService {
     }
 
     @SuppressWarnings("checkstyle:MagicNumber")
-    public UpdTraceDto trace(final long runId, final long updId) {
-        final RunUpdDto upd = rows(runId, updId).stream().findFirst()
+    public UpdTraceDto trace(final long runId, final long updId, final ManagerAccess.Scope scope) {
+        final RunUpdDto upd = rows(runId, updId, scope).stream().findFirst()
                 .orElseThrow(() -> ApiException.notFound("УПД в запуске " + runId, updId));
         final MapSqlParameterSource params = new MapSqlParameterSource().addValue("runId", runId).addValue("updId", updId);
         final List<TraceStepDto> steps = new ArrayList<>();
@@ -179,19 +183,25 @@ public class RunDetailsService {
         return new UpdTraceDto(upd, steps, log);
     }
 
-    public List<RunBuyerDto> buyers(final long runId) {
-        return jdbc.query("""
+    public List<RunBuyerDto> buyers(final long runId, final ManagerAccess.Scope scope) {
+        final String own = ManagerAccess.clientCondition(scope, "u.client_id");
+        final String sql = """
                         select bs.*, b.inn, b.name,
                                (select count(*) from upd_state us join upd u on u.id = us.upd_id
-                                where us.run_id = bs.run_id and u.buyer_id = bs.buyer_id and us.payment_status <> 'PAID') as open_upds,
+                                where us.run_id = bs.run_id and u.buyer_id = bs.buyer_id and us.payment_status <> 'PAID' and OWN) as open_upds,
                                (select coalesce(sum(us.outstanding), 0) from upd_state us join upd u on u.id = us.upd_id
-                                where us.run_id = bs.run_id and u.buyer_id = bs.buyer_id and us.payment_status <> 'PAID') as open_amount,
+                                where us.run_id = bs.run_id and u.buyer_id = bs.buyer_id and us.payment_status <> 'PAID' and OWN) as open_amount,
                                (select count(*) from upd_decision d join upd u on u.id = d.upd_id
-                                where d.run_id = bs.run_id and u.buyer_id = bs.buyer_id and d.decision = 'OFFER') as offers,
+                                where d.run_id = bs.run_id and u.buyer_id = bs.buyer_id and d.decision = 'OFFER' and OWN) as offers,
                                (select coalesce(sum(d.ead_final), 0) from upd_decision d join upd u on u.id = d.upd_id
-                                where d.run_id = bs.run_id and u.buyer_id = bs.buyer_id and d.decision = 'OFFER') as ead_total
+                                where d.run_id = bs.run_id and u.buyer_id = bs.buyer_id and d.decision = 'OFFER' and OWN) as ead_total
                         from buyer_score bs join buyer b on b.id = bs.buyer_id
-                        where bs.run_id = :runId order by b.name""", new MapSqlParameterSource("runId", runId),
+                        where bs.run_id = :runId BUYER_FILTER
+                        order by b.name""";
+        final String filter = scope.all() ? "" : """
+                and exists (select 1 from upd_state us join upd u on u.id = us.upd_id
+                            where us.run_id = bs.run_id and u.buyer_id = bs.buyer_id and OWN)""";
+        return jdbc.query(sql.replace("BUYER_FILTER", filter).replace("OWN", own), params(runId, scope),
                 (rs, rowNum) -> new RunBuyerDto(rs.getLong("buyer_id"), rs.getString("inn"), rs.getString("name"), rs.getString("stop_factor"),
                         rs.getBoolean("has_payment_history"), rs.getBigDecimal("pd"), rs.getString("pd_source"), rs.getBoolean("low_data"),
                         level(rs.getString("risk_level")), json.read(rs.getString("reasons"), REASONS), rs.getString("model_version"),
@@ -199,7 +209,7 @@ public class RunDetailsService {
                         rs.getBigDecimal("open_amount"), rs.getInt("offers"), rs.getBigDecimal("ead_total")));
     }
 
-    public List<RunClientDto> clients(final long runId) {
+    public List<RunClientDto> clients(final long runId, final ManagerAccess.Scope scope) {
         return jdbc.query("""
                         select c.id, c.inn, c.name, c.industry, c.is_core, c.abs_liquidity,
                                count(*) filter (where us.payment_status <> 'PAID') as open_upds,
@@ -211,17 +221,22 @@ public class RunDetailsService {
                         join upd u on u.id = us.upd_id
                         join client c on c.id = u.client_id
                         left join upd_decision d on d.run_id = us.run_id and d.upd_id = us.upd_id
-                        where us.run_id = :runId
-                        group by c.id order by c.name""", new MapSqlParameterSource("runId", runId),
+                        where us.run_id = :runId and OWN
+                        group by c.id order by c.name""".replace("OWN", ManagerAccess.clientCondition(scope, "c.id")), params(runId, scope),
                 (rs, rowNum) -> new RunClientDto(rs.getLong("id"), rs.getString("inn"), rs.getString("name"), rs.getString("industry"),
                         rs.getBoolean("is_core"), rs.getBigDecimal("abs_liquidity"), rs.getInt("open_upds"), rs.getBigDecimal("open_amount"),
                         rs.getInt("overdue_upds"), rs.getInt("offers"), rs.getBigDecimal("ead_total")));
     }
 
-    private List<RunUpdDto> rows(final long runId, final Long updId) {
+    private static MapSqlParameterSource params(final long runId, final ManagerAccess.Scope scope) {
+        return new MapSqlParameterSource().addValue("runId", runId).addValue(ManagerAccess.CODES_PARAM, scope.codes());
+    }
+
+    private List<RunUpdDto> rows(final long runId, final Long updId, final ManagerAccess.Scope scope) {
         requireRun(runId);
-        final MapSqlParameterSource params = new MapSqlParameterSource().addValue("runId", runId).addValue("updId", updId);
-        return jdbc.query(UPD_ROWS + (updId != null ? " and u.id = :updId" : "") + " order by c.name, u.upd_date, u.number", params,
+        final MapSqlParameterSource params = params(runId, scope).addValue("updId", updId);
+        return jdbc.query(UPD_ROWS + " and " + ManagerAccess.clientCondition(scope, "c.id")
+                + (updId != null ? " and u.id = :updId" : "") + " order by c.name, u.upd_date, u.number", params,
                 (rs, rowNum) -> {
                     final String reason = rs.getString("reason");
                     final String decision = rs.getString("decision");

@@ -31,7 +31,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 public class ManagerAccess {
+    /** параметр SQL с кодами менеджеров для {@link #clientCondition} */
+    public static final String CODES_PARAM = "managerCodes";
     static final String SUPERVISOR = "supervisor";
+    static final String OPERATOR = "operator";
 
     private final NamedParameterJdbcTemplate jdbc;
     private final boolean enabled;
@@ -55,6 +58,40 @@ public class ManagerAccess {
         }
         final String login = user.username() == null ? "" : user.username().toLowerCase(Locale.ROOT);
         return new Scope(false, managerCodes.getOrDefault(login, Set.of()));
+    }
+
+    /**
+     * Экран процесса (п. 1.1а-21): оператор запускает анализ по всем клиентам и видит всех; менеджер без роли operator -
+     * только своих клиентов в детализации, журнале и списке клиентов запуска, как в CRM.
+     */
+    public Scope runScope(final @Nullable JwtPayload user) {
+        if (user != null && user.roles().contains(OPERATOR)) {
+            return Scope.ALL;
+        }
+        return scope(user);
+    }
+
+    /**
+     * Условие SQL «клиент из колонки доступен»: для всех - true, иначе подзапрос по кодам менеджеров
+     * (параметр {@value #CODES_PARAM}, значения - {@link Scope#codes()}).
+     */
+    public static String clientCondition(final Scope scope, final String clientIdColumn) {
+        if (scope.all()) {
+            return "true";
+        }
+        if (scope.codes().isEmpty()) {
+            return "false";
+        }
+        return clientIdColumn + " in (select sc.id from client sc join manager sm on sm.id = sc.manager_id where sm.code in (:"
+                + CODES_PARAM + "))";
+    }
+
+    /**
+     * Путь УПД: чужой клиент - 403, как карточка.
+     */
+    public void checkUpd(final Scope scope, final long updId, final @Nullable JwtPayload user) {
+        check(scope, "select m.code from upd u join client c on c.id = u.client_id join manager m on m.id = c.manager_id "
+                + "where u.id = :id", updId, "УПД", user);
     }
 
     public void checkManager(final Scope scope, final long managerId, final @Nullable JwtPayload user) {
