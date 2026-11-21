@@ -41,7 +41,8 @@ final class TrustedCertificates {
             }
             final X509TrustManager defaults = trustManager(null);
             final X509TrustManager extras = trustManager(extra);
-            final SSLContext context = SSLContext.getInstance("TLS");
+            // «TLS» в JDK 25 - TLS 1.3 и 1.2 (старые версии выключены в java.security), а не устаревший протокол
+            final SSLContext context = SSLContext.getInstance("TLS"); // nosemgrep: java.lang.security.audit.weak-ssl-context.weak-ssl-context
             context.init(null, new TrustManager[]{new EitherTrustManager(defaults, extras)}, null);
             return context;
         } catch (IOException | GeneralSecurityException e) {

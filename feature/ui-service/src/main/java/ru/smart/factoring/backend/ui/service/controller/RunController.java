@@ -31,6 +31,7 @@ import ru.smart.factoring.backend.api.run.StartRunRequest;
 import ru.smart.factoring.backend.api.run.StartRunResponse;
 import ru.smart.factoring.backend.factoring.details.RunDetailsService;
 import ru.smart.factoring.backend.factoring.economics.EconomicEffectService;
+import ru.smart.factoring.backend.factoring.offer.ManagerAccess;
 import ru.smart.factoring.backend.factoring.run.RunRepository;
 import ru.smart.factoring.backend.factoring.run.RunService;
 import ru.smart.factoring.backend.security.JwtPayload;
@@ -41,6 +42,10 @@ import java.util.stream.Collectors;
 
 /**
  * Экран процесса: запуск прогона, ход, история, журнал (ЭП-1…ЭП-9).
+ * <p>
+ * Объектный доступ (НФР-9, п. 1.1а-21): оператор, руководитель и гость видят все объекты запуска; менеджер - только
+ * своих клиентов, их УПД и покупателей ({@link ManagerAccess#runScope}), путь чужого УПД - 403. Сводные цифры
+ * (история запусков, экономический эффект) - без названий и реквизитов клиентов, их видят все роли экрана.
  */
 @Validated
 @RestController
@@ -53,6 +58,7 @@ public class RunController {
     private final RunService runService;
     private final RunDetailsService runDetailsService;
     private final EconomicEffectService economicEffectService;
+    private final ManagerAccess access;
     /** клиент Keycloak гостевого входа «Запуск демо»: его токен - только просмотр (П4-1) */
     @Value("${smart-factoring.guest-client-id:smart-factoring-guest}")
     private String guestClientId;
@@ -102,8 +108,8 @@ public class RunController {
     }
 
     @GetMapping("/{runId}")
-    public RunDto get(@PathVariable final long runId) {
-        return runService.get(runId);
+    public RunDto get(@PathVariable final long runId, final @Nullable JwtPayload user) {
+        return runService.get(runId, access.runScope(user));
     }
 
     @GetMapping("/{runId}/log")
@@ -111,8 +117,9 @@ public class RunController {
                                        @RequestParam(required = false) final String level,
                                        @RequestParam(required = false) final Integer stepNo,
                                        @RequestParam(defaultValue = "0") final int page,
-                                       @RequestParam(defaultValue = "100") final int size) {
-        return runService.log(runId, level, stepNo, page, size);
+                                       @RequestParam(defaultValue = "100") final int size,
+                                       final @Nullable JwtPayload user) {
+        return runService.log(runId, level, stepNo, page, size, access.runScope(user));
     }
 
     /**
@@ -132,8 +139,8 @@ public class RunController {
      * Воронка УПД (ЭП-4).
      */
     @GetMapping("/{runId}/funnel")
-    public List<FunnelStageDto> funnel(@PathVariable final long runId) {
-        return runDetailsService.funnel(runId);
+    public List<FunnelStageDto> funnel(@PathVariable final long runId, final @Nullable JwtPayload user) {
+        return runDetailsService.funnel(runId, access.runScope(user));
     }
 
     /**
@@ -151,25 +158,29 @@ public class RunController {
                                    @RequestParam(required = false) final String riskLevel,
                                    @RequestParam(required = false) final String paymentStatus,
                                    @RequestParam(defaultValue = "0") final int page,
-                                   @RequestParam(defaultValue = "50") final int size) {
-        return runDetailsService.upds(runId, clientId, buyerId, category, decision, reason, stage, riskLevel, paymentStatus, page, size);
+                                   @RequestParam(defaultValue = "50") final int size,
+                                   final @Nullable JwtPayload user) {
+        return runDetailsService.upds(runId, clientId, buyerId, category, decision, reason, stage, riskLevel, paymentStatus, page, size,
+                access.runScope(user));
     }
 
     /**
      * Путь УПД через шаги прогона (ЭП-5).
      */
     @GetMapping("/{runId}/upds/{updId}/trace")
-    public UpdTraceDto trace(@PathVariable final long runId, @PathVariable final long updId) {
-        return runDetailsService.trace(runId, updId);
+    public UpdTraceDto trace(@PathVariable final long runId, @PathVariable final long updId, final @Nullable JwtPayload user) {
+        final ManagerAccess.Scope scope = access.runScope(user);
+        access.checkUpd(scope, updId, user);
+        return runDetailsService.trace(runId, updId, scope);
     }
 
     @GetMapping("/{runId}/buyers")
-    public List<RunBuyerDto> buyers(@PathVariable final long runId) {
-        return runDetailsService.buyers(runId);
+    public List<RunBuyerDto> buyers(@PathVariable final long runId, final @Nullable JwtPayload user) {
+        return runDetailsService.buyers(runId, access.runScope(user));
     }
 
     @GetMapping("/{runId}/clients")
-    public List<RunClientDto> clients(@PathVariable final long runId) {
-        return runDetailsService.clients(runId);
+    public List<RunClientDto> clients(@PathVariable final long runId, final @Nullable JwtPayload user) {
+        return runDetailsService.clients(runId, access.runScope(user));
     }
 }
