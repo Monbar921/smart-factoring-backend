@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import ru.smart.factoring.backend.factoring.db.Batches;
 import ru.smart.factoring.backend.factoring.json.Json;
 import ru.smart.factoring.backend.factoring.ml.ModelClient;
 import tools.jackson.core.type.TypeReference;
@@ -83,7 +84,8 @@ public class ScoringRepository {
                         join run r on r.id = us.run_id and r.status in ('DONE', 'DONE_WITH_WARNINGS')
                         join upd u on u.id = us.upd_id
                         join client c on c.id = u.client_id
-                        where u.buyer_id in (:buyerIds) and u.client_id not in (:clientIds) and u.upd_date <= :calcDate
+                        where u.buyer_id in (:buyerIds) and u.client_id not in (:clientIds)
+                          and u.upd_date <= :calcDate
                         order by us.upd_id, us.run_id desc""",
                 new MapSqlParameterSource()
                         .addValue("buyerIds", buyerIds)
@@ -138,7 +140,7 @@ public class ScoringRepository {
     }
 
     public void saveBuyerScores(final long runId, final Collection<ScoringResult.BuyerScore> scores) {
-        jdbc.batchUpdate("""
+        Batches.update(jdbc, """
                         insert into buyer_score (run_id, buyer_id, has_external_data, stop_factor, has_payment_history, pd, pd_source,
                                                  low_data, low_data_reason, risk_level, reasons, model_version, data_date, from_cache)
                         values (:runId, :buyerId, true, :stopFactor, :hasHistory, :pd, :pdSource, :lowData, :lowDataReason, :riskLevel,
@@ -162,7 +164,7 @@ public class ScoringRepository {
     }
 
     public void saveUpdScores(final long runId, final int delayThresholdDays, final Collection<ScoringResult.UpdScore> scores) {
-        jdbc.batchUpdate("""
+        Batches.update(jdbc, """
                         insert into upd_score (run_id, upd_id, status, delay_threshold_days, p_delay, p_overdue_90, expected_delay_days,
                                                no_pair_history, model_version, attempts, error_message)
                         values (:runId, :updId, :status, :threshold, :pDelay, :pOverdue90, :expectedDelayDays, :noPairHistory,

@@ -28,6 +28,10 @@ spring:
       password: ${POSTGRES_PASSWORD}
       jdbc-url: ${POSTGRES_JDBC}
       username: ${POSTGRES_USER}
+      # пакетные вставки одним многострочным INSERT, а не строкой на запрос: на объёме сегмента импорт и шаги 2, 3, 5
+      # в 3-6 раз быстрее (Р-88, docs/scaling.md); счётчики строк batchUpdate код не использует
+      data-source-properties:
+        reWriteBatchedInserts: true
   liquibase:
     change-log: classpath:liquibase/db.changelog-master.xml
     default-schema: ${POSTGRES_SCHEMA:smart_factoring_test}

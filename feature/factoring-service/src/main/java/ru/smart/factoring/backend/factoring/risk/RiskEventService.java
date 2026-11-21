@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.smart.factoring.backend.factoring.db.Batches;
 import ru.smart.factoring.backend.api.common.ClientRefDto;
 import ru.smart.factoring.backend.api.risk.EfrsbEventKind;
 import ru.smart.factoring.backend.api.risk.EfrsbEventRequest;
@@ -294,7 +295,7 @@ public class RiskEventService {
                     + buyer.title() + ", " + stopName + "; отозвано предложений " + queued.size() + " на " + LogText.money(revokedEad)
                     + ", передано в факторинг ранее " + transferred.size()).buyer(buyer.id()));
         }
-        jdbc.batchUpdate("""
+        Batches.update(jdbc, """
                         insert into notification (run_id, manager_id, type, client_id, buyer_id, upd_id, offer_id, payload)
                         values (null, :managerId, :type, :clientId, :buyerId, :updId, :offerId, cast(:payload as jsonb))""",
                 notifications.toArray(MapSqlParameterSource[]::new));

@@ -847,4 +847,14 @@
         </sql>
     </changeSet>
 
+    <!--
+        Р-88: на объёме сегмента вставка уведомлений о просрочке с проверкой «уже было на эту дату» шла квадратично:
+        без индекса по УПД каждая строка просматривала всю таблицу notification
+    -->
+    <changeSet id="SMF-33-notification-upd-index" author="Monbar921">
+        <sql endDelimiter=";">
+            create index ix_notification_upd_type on "${schema}".notification (upd_id, type) where upd_id is not null;
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

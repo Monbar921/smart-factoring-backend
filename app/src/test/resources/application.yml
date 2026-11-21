@@ -20,6 +20,9 @@ spring:
       password: password
       jdbc-url: jdbc:postgresql://localhost:5432/postgres
       username: username
+      # как на стенде (Р-88)
+      data-source-properties:
+        reWriteBatchedInserts: true
   liquibase:
     change-log: classpath:liquibase/db.changelog-master.xml
     parameters:

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
+import ru.smart.factoring.backend.factoring.db.Batches;
 import ru.smart.factoring.backend.factoring.load.RunDataRepository;
 import ru.smart.factoring.backend.factoring.load.RunScope;
 import ru.smart.factoring.backend.factoring.model.Upd;
@@ -45,7 +46,7 @@ public class ReconciliationStep implements RunStep {
         final List<Reconciliation.Payment> payments = runData.payments(scope, context.getCalcDate());
         final Reconciliation.Outcome outcome = Reconciliation.reconcile(upds, payments);
 
-        jdbc.batchUpdate("""
+        Batches.update(jdbc, """
                         insert into payment_allocation (run_id, payment_id, upd_id, amount, rule)
                         values (:runId, :paymentId, :updId, :amount, :rule)""",
                 outcome.allocations().stream()

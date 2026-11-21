@@ -5,6 +5,8 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import ru.smart.factoring.backend.factoring.db.SqlArrays;
+import ru.smart.factoring.backend.factoring.db.Batches;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -30,8 +32,8 @@ public class DecisionRepository {
             return Set.of();
         }
         return new HashSet<>(jdbc.queryForList(
-                "select upd_id from offer where status in ('TRANSFERRED', 'REJECTED') and upd_id in (:ids)",
-                new MapSqlParameterSource("ids", updIds), Long.class));
+                "select upd_id from offer where status in ('TRANSFERRED', 'REJECTED') and upd_id = any(cast(:ids as bigint[]))",
+                new MapSqlParameterSource("ids", SqlArrays.ids(updIds)), Long.class));
     }
 
     /**
@@ -54,7 +56,8 @@ public class DecisionRepository {
                                    or us.run_id in (select id from run where status in ('DONE', 'DONE_WITH_WARNINGS')))
                             order by (us.run_id = :runId) desc, us.run_id desc
                             limit 1) st on true
-                        where o.status = 'TRANSFERRED' and o.buyer_id in (:buyerIds) and coalesce(st.payment_status, 'UNPAID') <> 'PAID'
+                        where o.status = 'TRANSFERRED' and o.buyer_id in (:buyerIds)
+                          and coalesce(st.payment_status, 'UNPAID') <> 'PAID'
                         group by o.buyer_id""",
                 new MapSqlParameterSource().addValue("runId", runId).addValue("buyerIds", buyerIds),
                 rs -> {
@@ -80,7 +83,7 @@ public class DecisionRepository {
     }
 
     public void saveDecisions(final long runId, final Collection<DecisionEngine.Decision> decisions, final Set<Long> newUpdIds) {
-        jdbc.batchUpdate("""
+        Batches.update(jdbc, """
                         insert into upd_decision (run_id, upd_id, category, decision, reason, risk_level, advance_rate, delay_probable,
                             term_days, pd_term, lgd, ead_calc, el_calc, funding_calc, opex_calc, margin_calc, price_cap_calc, price_calc,
                             cap_applied, income_calc, ead_final, el_final, price_final, price_rate_final, income_final, tr, rank_value,

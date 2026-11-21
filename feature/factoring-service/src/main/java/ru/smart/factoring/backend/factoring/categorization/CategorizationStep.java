@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
+import ru.smart.factoring.backend.factoring.db.Batches;
 import ru.smart.factoring.backend.factoring.json.Json;
 import ru.smart.factoring.backend.factoring.load.RunScope;
 import ru.smart.factoring.backend.factoring.model.Categories;
@@ -67,7 +68,7 @@ public class CategorizationStep implements RunStep {
 
     private Result persist(final RunContext context, final List<UpdState> states, final Map<Long, Long> managers) {
         final long runId = context.getRunId();
-        jdbc.batchUpdate("""
+        Batches.update(jdbc, """
                         insert into upd_state (run_id, upd_id, planned_due_date, days_to_due, paid_amount, outstanding, payment_status,
                                                paid_date, delay_days, category)
                         values (:runId, :updId, :plannedDueDate, :daysToDue, :paid, :outstanding, :paymentStatus, :paidDate,
@@ -130,16 +131,28 @@ public class CategorizationStep implements RunStep {
 
         // П4-4: повторный прогон на ту же дату расчёта не повторяет уведомление о той же просрочке (по УПД) и тот же
         // сигнал в риск (по покупателю) - менеджер уже получил их от прежнего прогона
-        jdbc.batchUpdate("""
+        // Просрочки - отдельным запросом с равенством по upd_id: индекс ix_notification_upd_type, а не просмотр всей
+        // таблицы на каждую строку (на объёме сегмента - сотни тысяч уведомлений, квадратичное время, Р-88)
+        Batches.update(jdbc, """
+                        insert into notification (run_id, manager_id, type, client_id, buyer_id, upd_id, payload)
+                        select :runId, :managerId, :type, :clientId, :buyerId, :updId, cast(:payload as jsonb)
+                        where not exists (
+                            select 1 from notification n join run r on r.id = n.run_id
+                            where n.upd_id = cast(:updId as bigint) and n.type = :type and n.manager_id = :managerId
+                              and r.calc_date = (select calc_date from run where id = :runId))""",
+                notifications.stream().filter(params -> !"RISK_SIGNAL".equals(params.getValue("type")))
+                        .toArray(MapSqlParameterSource[]::new));
+        // сигналы в риск - по покупателю, их единицы на прогон
+        Batches.update(jdbc, """
                         insert into notification (run_id, manager_id, type, client_id, buyer_id, upd_id, payload)
                         select :runId, :managerId, :type, :clientId, :buyerId, :updId, cast(:payload as jsonb)
                         where not exists (
                             select 1 from notification n join run r on r.id = n.run_id
                             where n.type = :type and n.manager_id = :managerId
                               and r.calc_date = (select calc_date from run where id = :runId)
-                              and case when :type = 'RISK_SIGNAL' then n.buyer_id is not distinct from cast(:buyerId as bigint)
-                                       else n.upd_id is not distinct from cast(:updId as bigint) end)""",
-                notifications.toArray(MapSqlParameterSource[]::new));
+                              and n.buyer_id is not distinct from cast(:buyerId as bigint))""",
+                notifications.stream().filter(params -> "RISK_SIGNAL".equals(params.getValue("type")))
+                        .toArray(MapSqlParameterSource[]::new));
         runLog.write(log);
 
         final Map<String, Long> byCategory = states.stream()
