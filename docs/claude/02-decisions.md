@@ -405,5 +405,14 @@ REST-контроллеры — в `ui-service` (как сейчас `Maintenanc
   workflow `secret-scan.yml` и `.gitleaks.toml` во всех репозиториях (gitleaks v8.28.0 образом Docker, проверка
   файлов на push и pull request, запрет отслеживаемого `.env`), `.env` в `.gitignore` всех репозиториев. Аудит
   истории — `docs/security.md`, «Секреты».
+- **Р-78. HTTPS: Caddy на входе VDS** (п. 1.1-5). Один TLS-прокси в infra на все стенды: Caddy сам получает
+  и продлевает сертификаты Let's Encrypt (меньше движущихся частей, чем nginx + certbot), три имени в домене
+  `TLS_DOMAIN`: `app` — UI, `api` — gateway, `auth` — Keycloak (отдельные имена, а не пути: Keycloak и UI живут
+  с корня, issuer токенов не меняется по пути). Домена нет — `<IP через дефисы>.sslip.io`. В UI и gateway стенда прокси
+  ходит по сети `smart-factoring-edge` по именам контейнеров, поэтому их порты закрываются (`UI_BIND`,
+  `GATEWAY_BIND`, `KEYCLOAK_BIND` = `127.0.0.1`). Keycloak — `KC_PROXY_HEADERS=xforwarded`; `/admin` и realm master
+  снаружи — 404, админка по-прежнему через SSH-туннель. Уже импортированный realm переводит `https-setup.sh`:
+  https redirect URI (http-адреса на время перехода) и `sslRequired=external`. Без `TLS_DOMAIN` прокси не запускается
+  (профиль compose `tls`), стенд работает как раньше. Порядок включения — README smart-factoring-deploy, «HTTPS».
 - **Р-24. Контракт API backend — в markdown**, DTO и контроллеры пишем в модулях, где они нужны.
 - **Порядок:** UI раньше реального ML (ML всё равно у коллеги, backend и UI работают на заглушке сервиса моделей).

@@ -51,7 +51,7 @@
 | 2 | сделано в коде | `LLM_MODE=onprem`, переменные в deploy; рассуждение моделей с «мышлением» отбрасывается, предел токенов — `LLM_MAX_TOKENS`. На настоящей модели не проверено (нет сервера моделей): проверка одной командой — `OnPremModeManualTest` |
 | 3 | частично | `.env` не отслеживается, есть `.env.example`; во всех пяти репозиториях — проверка секретов gitleaks на каждый push (`secret-scan.yml`), история проверена: других утечек нет. Осталось вручную: сменить пароль из `.env` (локальная Postgres, порт 5433; тот же пароль — в `.env` проекта invest-api, он тоже публичный); в `test.env` стенда его нет, секреты стендов в GitHub проверить владельцу |
 | 4 | сделано | Backend: `MANAGER_LOGINS`, 403 на чужое; роль `supervisor` — CRM по всем менеджерам только для просмотра в gateway и UI; роли создаёт `guest-setup.sh`, есть в realm-файле. Перед выкатом — запустить `guest-setup.sh` и выдать `supervisor` команде, заполнить `MANAGER_LOGINS`. В браузере на стенде не проверено |
-| 5 | не начато | Нужен домен для сертификата; затем TLS-прокси перед UI, gateway и Keycloak, `sslRequired` и redirect URI в realm |
+| 5 | сделано в коде, не включено | smart-factoring-deploy: TLS-прокси Caddy (`https://app\|api\|auth.<TLS_DOMAIN>`, Let's Encrypt), сеть `smart-factoring-edge`, закрытие http-портов (`*_BIND`), `https-setup.sh` — redirect URI и `sslRequired=external`; админка Keycloak снаружи закрыта. Включение — README smart-factoring-deploy, раздел «HTTPS»: домен (свой или `<IP>.sslip.io`), порты 80/443, переменные, Infra, Deploy. На стенде не проверено |
 | 6 | сделано | [security.md](security.md); слайд — за презентацией |
 
 ### 1.2. Оценка ценности (22 балла)
