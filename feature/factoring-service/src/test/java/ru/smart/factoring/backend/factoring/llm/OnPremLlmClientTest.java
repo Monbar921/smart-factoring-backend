@@ -27,6 +27,8 @@ class OnPremLlmClientTest {
     private final List<String> authorizations = Collections.synchronizedList(new ArrayList<>());
     private final List<String> bodies = Collections.synchronizedList(new ArrayList<>());
     private final AtomicInteger failuresLeft = new AtomicInteger();
+    /** content ответа chat/completions, в JSON-строке */
+    private volatile String content = "Ответ модели";
 
     @BeforeEach
     void startServer() throws IOException {
@@ -40,8 +42,8 @@ class OnPremLlmClientTest {
             }
             send(exchange, 200, """
                     {"id":"chatcmpl-1","object":"chat.completion","model":"t-lite",
-                     "choices":[{"index":0,"message":{"role":"assistant","content":"Ответ модели"},"finish_reason":"stop"}],
-                     "usage":{"prompt_tokens":20,"completion_tokens":4,"total_tokens":24}}""");
+                     "choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],
+                     "usage":{"prompt_tokens":20,"completion_tokens":4,"total_tokens":24}}""".formatted(content));
         });
         server.createContext("/v1/models", exchange -> send(exchange, 200,
                 "{\"object\":\"list\",\"data\":[{\"id\":\"t-lite\",\"object\":\"model\"},{\"id\":\"qwen2.5:7b\",\"object\":\"model\"}]}"));
@@ -86,6 +88,25 @@ class OnPremLlmClientTest {
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("on-prem LLM недоступен")
                 .hasMessageContaining("503");
+    }
+
+    @Test
+    void reasoningOfThinkingModelIsNotShown() {
+        // DeepSeek-R1, Qwen3: рассуждение - в content перед ответом
+        // в JSON перевод строки - \n, поэтому в Java-строке \\n
+        content = "<think>\\nПокупатель BUYER_1, уровень A. Нужно сказать про ликвидность.\\n</think>\\n\\nХорошая новость: риск низкий.";
+
+        assertThat(client(null).complete(request()).content()).isEqualTo("Хорошая новость: риск низкий.");
+    }
+
+    @Test
+    void reasoningCutByTokenLimitIsAnError() {
+        content = "<think>\\nДолгое рассуждение, которое не уместилось";
+
+        assertThatThrownBy(() -> client(null).complete(request()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("только рассуждение модели")
+                .hasMessageContaining("LLM_MAX_TOKENS");
     }
 
     @Test

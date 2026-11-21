@@ -15,9 +15,19 @@ import java.time.Duration;
  * @param gigachat    настройки GigaChat для mode = gigachat
  * @param onprem      настройки on-prem LLM для mode = onprem
  * @param parallelism одновременных запросов к LLM: и потоков прогона, и предел одновременных запросов к LLM
+ * @param maxTokens   предел токенов ответа на текст карточки; null - 512
  */
 @ConfigurationProperties("smart-factoring.llm")
-public record LlmProperties(String mode, Boolean mask, GigaChat gigachat, OnPrem onprem, Integer parallelism) {
+public record LlmProperties(String mode, Boolean mask, GigaChat gigachat, OnPrem onprem, Integer parallelism, Integer maxTokens) {
+
+    private static final int DEFAULT_MAX_TOKENS = 512;
+
+    /**
+     * Предел токенов ответа на один текст карточки; моделям с «мышлением» нужно больше - рассуждение тоже в пределе.
+     */
+    public int answerTokens() {
+        return maxTokens != null && maxTokens > 0 ? maxTokens : DEFAULT_MAX_TOKENS;
+    }
 
     /**
      * Маскировать данные клиентов перед LLM; по умолчанию - да.

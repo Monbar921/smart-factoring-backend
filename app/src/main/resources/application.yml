@@ -42,6 +42,23 @@ smart-factoring:
     # «логин Keycloak:код менеджера» через запятую, код - из managers.csv: anna:M1,boris:M2.
     # Роль supervisor видит всех менеджеров, гостевой вход - всех, только просмотр
     manager-logins: ${MANAGER_LOGINS:}
+  # экономический эффект (Р-76): допущения, обоснование - docs/economics.md и финансовая модель
+  economics:
+    # «ядро» и весь сегмент: компании с выручкой 0,8–2 млрд ₽ (RFSD, BRD «Проблема клиента»)
+    core-clients: ${ECONOMICS_CORE_CLIENTS:5759}
+    segment-clients: ${ECONOMICS_SEGMENT_CLIENTS:22641}
+    # внедрение, ₽: 6,5 ставки × 6 мес. × 400 тыс. ₽ + сервер для LLM в контуре 3 млн ₽
+    implementation-cost: ${ECONOMICS_IMPLEMENTATION_COST:18600000}
+    # сопровождение, ₽ в год: 2 ставки × 12 мес. × 400 тыс. ₽ + инфраструктура 1,2 млн ₽
+    fixed-annual-cost: ${ECONOMICS_FIXED_ANNUAL_COST:10800000}
+    # на клиента, ₽ в год: вычисления, хранение, LLM
+    annual-cost-per-client: ${ECONOMICS_COST_PER_CLIENT:600}
+    # проработок клиента менеджером в год (ежеквартально)
+    reviews-per-year: ${ECONOMICS_REVIEWS_PER_YEAR:4}
+    # час клиентского менеджера с начислениями, ₽
+    manager-hour-cost: ${ECONOMICS_MANAGER_HOUR_COST:1500}
+    # часов на ставку в год (норма при 40-часовой неделе)
+    fte-hours-per-year: ${ECONOMICS_FTE_HOURS_PER_YEAR:1970}
   manual-upload:
     # каталог на сервере, из которого POST /manual-upload берёт выгрузку генератора по относительному пути
     import-dir: ${MANUAL_UPLOAD_DIR:/data/manual-upload}
@@ -62,6 +79,8 @@ smart-factoring:
     # одновременных запросов к LLM: сотни карточек последовательно не уложатся в 10 минут (НФР-1.1);
     # не больше лимита тарифа GigaChat (Freemium - 1 поток), иначе 429
     parallelism: ${LLM_PARALLELISM:8}
+    # предел токенов ответа на текст карточки; моделям с «мышлением» (DeepSeek-R1, Qwen3) - 2048 и больше
+    max-tokens: ${LLM_MAX_TOKENS:512}
     gigachat:
       auth-key: ${GIGACHAT_AUTH_KEY:}
       scope: ${GIGACHAT_SCOPE:GIGACHAT_API_PERS}

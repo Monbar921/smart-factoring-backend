@@ -109,6 +109,16 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
 - шаг 5: `offers`, `noOffers`, `noOfferByReason {код: число}`, `eadTotal`, `incomeTotal`, `expectedAccepted` (Σ TR, М-7),
   `queuedOffers`, `newOfferNotifications`, `revokedOffers`, `reminders`.
 
+### `GET /runs/{id}/economics` — экономический эффект (Р-76)
+
+Параметры: `fundingRate` и `trBase` — доли (`0.16`, `0.07`), без них — ставки запуска; вне (0; 1] — `400`. Идущий
+запуск — `409 RUN_NOT_FINISHED`. Ответ: `run` и `scenario` (ставки), `base` и `result` (предложения при ставках
+запуска и сценария: `offers`, `belowMinIncome`, `portfolioEad`, `portfolioIncome`, `expectedDeals`, `expectedEad`,
+`revenue`, `funding`, `expectedLoss`, `opex`, `income`, `avgTermDays`), `year` (`turnover`, `expectedEad`, `income`),
+`time` (`savedHoursPerYear`, `savedFte`, `savedRub`), `scales[]` (`DEMO`, `CORE`, `SEGMENT`: `clients`, `expectedEad`,
+`income`, `runCost`, `effect`, `savedFte`, `paybackMonths` — `null`, если не окупается), `assumptions`. Метод —
+`docs/economics.md`.
+
 ### `GET /runs/{id}/funnel` — воронка (ЭП-4)
 
 Массив ступеней по порядку: `OPEN`, `CATEGORY_1_4`, `HAS_DATA`, `NO_STOP_FACTOR`, `HAS_HISTORY`, `PASSED_RULES`, `TOP_N`, `QUEUED`;

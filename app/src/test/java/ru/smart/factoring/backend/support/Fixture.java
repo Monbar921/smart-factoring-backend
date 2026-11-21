@@ -31,6 +31,13 @@ public final class Fixture {
      * нескольку раз, поэтому - с «Прогнать заново» (force), если тест не задал его сам (П4-3).
      */
     public static JsonNode run(final Map<String, Object> request) throws InterruptedException {
+        return runAndWait(request, (long) MAX_POLLS * POLL_MS);
+    }
+
+    /**
+     * Как {@link #run(Map)}, но ждёт до timeoutMs: прогоны с настоящей LLM или на полном наборе демо идут минутами.
+     */
+    public static JsonNode runAndWait(final Map<String, Object> request, final long timeoutMs) throws InterruptedException {
         final Map<String, Object> body = new HashMap<>(request);
         body.putIfAbsent("force", true);
         final Api.Response started = Api.post("/runs", body);
@@ -38,7 +45,7 @@ public final class Fixture {
             throw new AssertionError("Запуск прогона: " + started.status() + " " + started.body());
         }
         final long runId = started.body().get("runId").asLong();
-        for (int i = 0; i < MAX_POLLS; i++) {
+        for (long i = 0; i < Math.max(1, timeoutMs / POLL_MS); i++) {
             final JsonNode run = Api.get("/runs/" + runId).body();
             if (!"RUNNING".equals(run.get("status").asString())) {
                 return run;

@@ -20,6 +20,7 @@ import ru.smart.factoring.backend.api.details.RunBuyerDto;
 import ru.smart.factoring.backend.api.details.RunClientDto;
 import ru.smart.factoring.backend.api.details.RunUpdDto;
 import ru.smart.factoring.backend.api.details.UpdTraceDto;
+import ru.smart.factoring.backend.api.economics.EconomicEffectDto;
 import ru.smart.factoring.backend.api.run.InitiatorType;
 import ru.smart.factoring.backend.api.run.RunAttemptDto;
 import ru.smart.factoring.backend.api.run.RunDefaultsDto;
@@ -29,10 +30,12 @@ import ru.smart.factoring.backend.api.run.RunLogEntryDto;
 import ru.smart.factoring.backend.api.run.StartRunRequest;
 import ru.smart.factoring.backend.api.run.StartRunResponse;
 import ru.smart.factoring.backend.factoring.details.RunDetailsService;
+import ru.smart.factoring.backend.factoring.economics.EconomicEffectService;
 import ru.smart.factoring.backend.factoring.run.RunRepository;
 import ru.smart.factoring.backend.factoring.run.RunService;
 import ru.smart.factoring.backend.security.JwtPayload;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -49,6 +52,7 @@ public class RunController {
 
     private final RunService runService;
     private final RunDetailsService runDetailsService;
+    private final EconomicEffectService economicEffectService;
     /** клиент Keycloak гостевого входа «Запуск демо»: его токен - только просмотр (П4-1) */
     @Value("${smart-factoring.guest-client-id:smart-factoring-guest}")
     private String guestClientId;
@@ -109,6 +113,19 @@ public class RunController {
                                        @RequestParam(defaultValue = "0") final int page,
                                        @RequestParam(defaultValue = "100") final int size) {
         return runService.log(runId, level, stepNo, page, size);
+    }
+
+    /**
+     * Экономический эффект (Р-76): предложения прогона при выбранных ставке фондирования и базовом TR, год, окупаемость.
+     *
+     * @param fundingRate ставка фондирования, доля (0.16); без неё - ставка прогона
+     * @param trBase      базовый TR, доля (0.07); без него - TR прогона
+     */
+    @GetMapping("/{runId}/economics")
+    public EconomicEffectDto economics(@PathVariable final long runId,
+                                       @RequestParam(required = false) final BigDecimal fundingRate,
+                                       @RequestParam(required = false) final BigDecimal trBase) {
+        return economicEffectService.effect(runId, fundingRate, trBase);
     }
 
     /**
