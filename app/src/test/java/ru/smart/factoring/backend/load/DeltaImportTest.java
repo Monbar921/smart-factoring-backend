@@ -164,10 +164,13 @@ class DeltaImportTest extends AbstractSmartFactoringBackendTest {
     @Test
     void resetClearsDataRunsAndDecisions() throws InterruptedException {
         Fixture.run(Map.of());
+        // тексты карточек от LLM - с настоящими названиями клиентов: очистка удаляет и их (docs/security.md)
+        jdbcTemplate.update("insert into llm_text_cache (input_hash, provider, reasons_text, message_draft) values ('h', 'gigachat', 'r', 'd')");
 
         assertThat(Api.delete("/manual-upload/data").status()).isEqualTo(204);
 
-        for (final String table : List.of("manual_upload_upd", "manual_upload_payment", "manual_upload_efrsb_event", "manual_upload_batch", "upd", "run", "offer")) {
+        for (final String table : List.of("manual_upload_upd", "manual_upload_payment", "manual_upload_efrsb_event", "manual_upload_batch", "upd", "run", "offer",
+                "llm_text_cache")) {
             assertThat(count(table)).as(table).isZero();
         }
         assertThat(count("parameter")).isPositive();

@@ -66,7 +66,9 @@ public class ManualUploadService {
     private static final List<String> LOADED_AND_RESULTS = List.of(
             "run_log", "notification", "offer", "upd_decision", "upd_score", "buyer_score", "buyer_pd_cache", "upd_state",
             "payment_allocation", "run_step", "payment", "upd", "contract", "buyer_financials", "buyer_external_data",
-            "client", "buyer", "manager", "run_attempt", "run", "imitation_factoring_package", "imitation_risk_signal");
+            "client", "buyer", "manager", "run_attempt", "run", "imitation_factoring_package", "imitation_risk_signal",
+            // тексты карточек от LLM - с настоящими названиями клиентов и покупателей: очистка данных удаляет и их
+            "llm_text_cache");
     private static final List<String> SOURCES = List.of(
             "manual_upload_manager", "manual_upload_client", "manual_upload_buyer", "manual_upload_buyer_financials",
             "manual_upload_contract", "manual_upload_upd", "manual_upload_payment", "manual_upload_egrul_status",
