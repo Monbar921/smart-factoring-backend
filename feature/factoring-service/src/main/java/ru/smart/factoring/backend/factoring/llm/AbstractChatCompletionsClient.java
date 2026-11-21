@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 /**
  * Общая часть клиентов LLM с API вида OpenAI: POST {api}/chat/completions и GET {api}/models (Р-74). Так устроены
@@ -40,6 +41,11 @@ abstract class AbstractChatCompletionsClient implements LlmClient {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(60);
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final int MAX_ERROR_BODY = 300;
+    /**
+     * Рассуждение моделей с «мышлением» (DeepSeek-R1, Qwen3 и др. в контуре): сервер отдаёт его в content перед ответом.
+     * Менеджеру показываем только ответ. Незакрытый блок - рассуждение не уместилось в max_tokens, ответа нет.
+     */
+    private static final Pattern THINKING = Pattern.compile("<think>.*?(</think>|$)", Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
 
     protected final RestClient client;
     /** как LLM называется в сообщениях об ошибках: GigaChat, on-prem LLM */
@@ -233,12 +239,16 @@ abstract class AbstractChatCompletionsClient implements LlmClient {
     private Completion parse(final String body, final String requested) {
         final JsonNode response = json(body);
         final JsonNode choice = response.path("choices").path(0);
-        final String content = choice.path("message").path("content").asString(null);
-        if (content == null) {
+        final String raw = choice.path("message").path("content").asString(null);
+        if (raw == null) {
             throw error("в ответе нет choices[0].message.content");
         }
+        final String content = THINKING.matcher(raw).replaceAll("").trim();
+        if (content.isEmpty() && !raw.isBlank()) {
+            throw error("в ответе только рассуждение модели, без текста: увеличьте LLM_MAX_TOKENS или выберите модель без «мышления»");
+        }
         final JsonNode usage = response.path("usage");
-        return new Completion(content.trim(), response.path("model").asString(requested),
+        return new Completion(content, response.path("model").asString(requested),
                 choice.path("finish_reason").asString(null),
                 new Usage(usage.path("prompt_tokens").asInt(0), usage.path("completion_tokens").asInt(0),
                         usage.path("total_tokens").asInt(0)));

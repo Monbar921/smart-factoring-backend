@@ -54,7 +54,6 @@ public class ExplainerService implements Explainer {
             репутации, платёжеспособности, финансового состояния и кредитной истории, никаких обещаний сроков выплаты
             и условий, которых нет во входе.""";
     private static final double TEMPERATURE = 0.2;
-    private static final int MAX_TOKENS = 512;
     /** finish_reason GigaChat: ответ заменён шаблонной фразой из-за цензуры */
     private static final String BLACKLIST = "blacklist";
 
@@ -157,7 +156,8 @@ public class ExplainerService implements Explainer {
 
     private String complete(final String systemPrompt, final String facts) {
         final LlmClient.Completion completion = llm.complete(new LlmClient.CompletionRequest(
-                List.of(new LlmClient.Message("system", systemPrompt), new LlmClient.Message("user", facts)), TEMPERATURE, MAX_TOKENS));
+                List.of(new LlmClient.Message("system", systemPrompt), new LlmClient.Message("user", facts)), TEMPERATURE,
+                properties.answerTokens()));
         if (BLACKLIST.equals(completion.finishReason())) {
             throw new IllegalStateException("ответ заменён цензурой GigaChat");
         }
