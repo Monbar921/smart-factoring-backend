@@ -222,7 +222,10 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
 
 `{ items: [ { id, runId, type, createdAt, client, buyer, updNumber, offerId, payload } ] }` — `type`: `NEW_OFFER`, `OFFER_CHANGED`
 (условия изменились: `payload.ead`, `payload.previousEad`, Р-70), `OVERDUE` (`payload.outstanding`,
-`payload.overdueDays`), `REMINDER`, `RISK_SIGNAL`.
+`payload.overdueDays`), `REMINDER`, `RISK_SIGNAL`, `OFFER_REVOKED` (предложение отозвано событием ЕФРСБ, Р-86:
+`payload.updNumber`, `ead`, `stopFactor`, `event`, `source: "EFRSB"`). Уведомления по событиям ЕФРСБ — вне прогона
+(`runId: null`), видны 30 дней и идут первыми; у сигнала в риск по событию в `payload` — `source: "EFRSB"`,
+`revokedOffers`, `transferredOffers`.
 
 ### `GET /clients/{id}/card` — карточка клиента (п. 5.5)
 
@@ -268,6 +271,17 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
   issueCounts: {CONFLICT: 1, ...}, issues: [{level, file, line, key, message}] }` (`dataDate` — по всем загруженным
   данным); ошибки формата и ссылок — `400 IMPORT_INVALID`, идёт прогон — `409 RUN_ALREADY_RUNNING`.
 - `POST /manual-upload/efrsb` — импорт `events.csv` (multipart `file` или `{ path }`), тоже дельта; ответ — как у `/manual-upload`.
+- После любого импорта покупатели с действующими предложениями проверяются на стоп-фактор по новым данным ЕФРСБ /
+  ЕГРЮЛ — реакция как у события ниже (Р-86).
+- `GET /manual-upload/efrsb-event/buyers` — покупатели с предложениями в очереди или переданными в факторинг:
+  `[ { inn, name, queuedOffers, queuedEad, transferredOffers } ]`.
+- `POST /manual-upload/efrsb-event` — событие ЕФРСБ по покупателю, имитация подписки на мониторинг (Р-86):
+  `{ "buyerInn": "7701000001", "kind": "OBSERVATION", "eventDate": null, "caseNumber": null }`, `kind` — `INTENT`
+  (намерение кредитора, не стоп-фактор), `OBSERVATION`, `BANKRUPT`, `LIQUIDATION`. Событие пишется в источники
+  `manual_upload_*` (следующий прогон его увидит), при стоп-факторе предложения покупателя в очереди — `REVOKED`
+  с `revokeReason: STOP_FACTOR`, сигнал в риск, уведомления менеджерам. Ответ: `{ buyer, event, stopFactor,
+  revokedOffers, revokedEad, transferredOffers, notifiedManagers, riskSignal, message }`. Неверный ИНН или нет `kind` —
+  `400`, покупателя нет в загруженных — `404`. Через gateway — только роль `operator`.
 - `DELETE /manual-upload/data` — полная очистка: источники, загруженные данные, прогоны и решения менеджеров (параметры остаются).
   `204`; идёт прогон — `409`.
 - `GET /parameters` — параметры Приложения А: `[ { code, value, valueType, section, description } ]`.
