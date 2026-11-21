@@ -125,6 +125,18 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
 `income`, `runCost`, `effect`, `savedFte`, `paybackMonths` — `null`, если не окупается), `assumptions`. Метод —
 `docs/economics.md`.
 
+### `GET /runs/{id}/monitoring` — мониторинг моделей и LLM (Р-87)
+
+Ответ: `models` (`pd`, `delay`, `llm`); `pd` — `buyers`, `bySource` (`MODEL`, `BASE`), `stopFactors`, `fromCache`, `meanPd`,
+`levels[]` и `modelLevels[]` (`{label, count, share}` по уровням A–D; `modelLevels` — только PD модели, по границам
+эталона), `psiReference` (к выборке разработки модели, `null` — у модели нет эталона), `psiPrevious` (к прошлому
+успешному запуску на той же версии модели), `reference` (`sample`, `size`, `cuts`, `shares`); `delay` — `upds`,
+`byStatus`, `meanPDelay`, `thresholdDays`, `buckets[]` (`< 10 %` … `≥ 50 %`), `psiPrevious`; `llm` — `provider`, `cards`,
+`bySource`, `answers`, `rejected` (отклонено проверкой фактов или искажённой меткой), `rejectedShare`,
+`templateAfterFactCheck`; `history[]` — до 10 последних успешных запусков (`runId`, `calcDate`, `pdVersion`, `buyers`,
+`psiReference`, `psiPrevious`, `llmRejectedShare`). PSI — `{value, status: STABLE|WATCH|SHIFT, baseline, baselineRunId, n}`,
+пороги 0,1 и 0,25. Нет запуска — `404`. Видят все роли экрана.
+
 ### `GET /runs/{id}/funnel` — воронка (ЭП-4)
 
 Массив ступеней по порядку: `OPEN`, `CATEGORY_1_4`, `HAS_DATA`, `NO_STOP_FACTOR`, `HAS_HISTORY`, `PASSED_RULES`, `TOP_N`, `QUEUED`;
