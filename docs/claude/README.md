@@ -13,6 +13,8 @@
 | [10-improvements-plan.md](10-improvements-plan.md) | План исправлений по замечаниям тестирования 28.10 (`docs/improvements`): блоки работ, порядок, вопросы |
 | [deploy-notes.md](deploy-notes.md) | Что добавить в smart-factoring-deploy: сервис ml, переменные |
 | [tools/gen_perf_dataset.py](tools/gen_perf_dataset.py) | Генератор набора объёма демо для проверки времени прогона |
+| [tools/build_financial_model.py](tools/build_financial_model.py) | Финансовая модель (xlsx) по выгрузке предложений запуска (`EconomicEffectManualTest`) |
+| [tools/md_to_pdf.py](tools/md_to_pdf.py) | Документ из `docs/` в PDF через Word — для папки с аналитикой загрузки |
 | [05-module-0-plan.md](05-module-0-plan.md) | Детальный план модуля 0: модель данных, Liquibase, контракты |
 | [module-0/data-model.md](module-0/data-model.md) | Модель данных: основные таблицы и `manual_upload_*`, ER-диаграмма |
 | [module-0/backend-api.md](module-0/backend-api.md) | Контракт API backend для UI и эмулятора CRM |
