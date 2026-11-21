@@ -815,4 +815,13 @@
         </sql>
     </changeSet>
 
+    <!-- Р-85: ночной прогон по расписанию - свой тип запуска -->
+    <changeSet id="SMF-33-run-initiator-schedule" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".run drop constraint run_initiator_type_check;
+            alter table "${schema}".run add constraint run_initiator_type_check
+                check (initiator_type in ('OPERATOR', 'API', 'SCHEDULE'));
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

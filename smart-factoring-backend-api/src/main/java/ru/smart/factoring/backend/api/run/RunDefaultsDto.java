@@ -13,7 +13,8 @@ import java.util.List;
  * @param clients        клиенты, доступные для прогона
  * @param runningRunId   прогон, который выполняется сейчас, иначе null
  * @param batches        партии ручной загрузки с их клиентами (Р-62); клиенты выгрузки генератора - без партии
+ * @param schedule       ночной прогон по расписанию (Р-85)
  */
 public record RunDefaultsDto(LocalDate dataDate, LocalDate snapshotDate, List<ClientRefDto> clients, Long runningRunId,
-                             List<RunBatchDto> batches) {
+                             List<RunBatchDto> batches, RunScheduleDto schedule) {
 }
