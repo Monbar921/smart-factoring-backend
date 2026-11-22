@@ -67,6 +67,14 @@ class JwtPayloadTest {
     }
 
     @Test
+    void managerCodesFromArrayOrSingleString() {
+        assertThat(reader.read("Bearer " + jwt("{\"manager_codes\":[\"M1\",\" M2 \",\"\"]}")).orElseThrow().managerCodes())
+                .containsExactlyInAnyOrder("M1", "M2");
+        assertThat(reader.read("Bearer " + jwt("{\"manager_codes\":\"M3\"}")).orElseThrow().managerCodes()).containsExactly("M3");
+        assertThat(reader.read("Bearer " + jwt(PAYLOAD)).orElseThrow().managerCodes()).isEmpty();
+    }
+
+    @Test
     void nullClaimIsKept() {
         final JwtPayload payload = reader.read("Bearer " + jwt("{\"sub\":\"1\",\"email\":null}")).orElseThrow();
 

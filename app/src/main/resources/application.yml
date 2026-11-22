@@ -41,11 +41,10 @@ spring:
 
 smart-factoring:
   access:
-    # карточку и предложения видит только менеджер клиента (НФР-9, Р-75); false - все видят всех, как в эмуляторе CRM
-    manager-scope: ${MANAGER_SCOPE:true}
-    # «логин Keycloak:код менеджера» через запятую, код - из managers.csv: anna:M1,boris:M2.
+    # карточку и предложения видит только менеджер клиента (НФР-9, Р-75); false - все видят всех, как в эмуляторе CRM.
+    # Коды менеджеров пользователя - claim manager_codes токена из атрибута manager_code в Keycloak (Р-90).
     # Роль supervisor видит всех менеджеров, гостевой вход - всех, только просмотр
-    manager-logins: ${MANAGER_LOGINS:}
+    manager-scope: ${MANAGER_SCOPE:true}
   manual-upload:
     # каталог на сервере, из которого POST /manual-upload берёт выгрузку генератора по относительному пути
     import-dir: ${MANUAL_UPLOAD_DIR:/data/manual-upload}

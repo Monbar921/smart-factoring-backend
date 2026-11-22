@@ -11,6 +11,7 @@
 | [08-stand-test.md](08-stand-test.md) | Сквозная проверка стенда test: шаги и ожидаемые результаты |
 | [09-llm-contract.md](09-llm-contract.md) | Контракт с LLM для коллеги: что уходит в промпт GigaChat и какой ответ ждём |
 | [10-improvements-plan.md](10-improvements-plan.md) | План исправлений по замечаниям тестирования 28.10 (`docs/improvements`): блоки работ, порядок, вопросы |
+| [11-pdn-stand-audit.md](11-pdn-stand-audit.md) | Персональные данные на стенде: что найдено (пользователи, IP в логах), что нужно по 152-ФЗ |
 | [deploy-notes.md](deploy-notes.md) | Что добавить в smart-factoring-deploy: сервис ml, переменные |
 | [tools/gen_perf_dataset.py](tools/gen_perf_dataset.py) | Генератор набора для замера времени прогона: объём демо или сегмента (`docs/scaling.md`) |
 | [tools/build_financial_model.py](tools/build_financial_model.py) | Финансовая модель (xlsx) по выгрузке предложений запуска (`EconomicEffectManualTest`) |
