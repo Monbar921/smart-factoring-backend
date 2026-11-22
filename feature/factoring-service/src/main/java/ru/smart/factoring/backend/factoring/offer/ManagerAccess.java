@@ -17,7 +17,8 @@ import java.util.Set;
  * manager_code (Р-90). Учётные данные и их привязка живут в IAM, а не в настройках backend и не в БД; на пилоте -
  * в IAM банка.
  * <ul>
- *     <li>роль manager - только менеджеры из его токена; кодов нет - никто;</li>
+ *     <li>роль manager - только менеджеры из его токена; кодов нет - никто; код {@value #ALL_MANAGERS} - все менеджеры
+ *     (явная запись администратора: тестовая учётка, демо; пустой атрибут всех не открывает);</li>
  *     <li>роль supervisor (руководитель) - все менеджеры;</li>
  *     <li>гостевой вход «Запуск демо» - все, только просмотр (изменения гостю запрещает gateway);</li>
  *     <li>запрос без токена - изнутри сети стенда, мимо gateway (интеграции): все;</li>
@@ -29,6 +30,8 @@ import java.util.Set;
 public class ManagerAccess {
     /** параметр SQL с кодами менеджеров для {@link #clientCondition} */
     public static final String CODES_PARAM = "managerCodes";
+    /** код менеджера в токене «работает за всех менеджеров» */
+    public static final String ALL_MANAGERS = "*";
     static final String SUPERVISOR = "supervisor";
     static final String OPERATOR = "operator";
 
@@ -48,7 +51,8 @@ public class ManagerAccess {
         if (!enabled || user == null || guestClientId.equals(user.authorizedParty()) || user.roles().contains(SUPERVISOR)) {
             return Scope.ALL;
         }
-        return new Scope(false, user.managerCodes());
+        final Set<String> codes = user.managerCodes();
+        return codes.contains(ALL_MANAGERS) ? Scope.ALL : new Scope(false, codes);
     }
 
     /**

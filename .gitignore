@@ -50,3 +50,4 @@ local_config
 
 # локальные настройки с паролями - только .env.example в git
 .env
+.openidea

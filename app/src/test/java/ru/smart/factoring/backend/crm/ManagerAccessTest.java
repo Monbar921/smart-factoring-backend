@@ -23,6 +23,7 @@ class ManagerAccessTest extends AbstractSmartFactoringBackendTest {
     private static final String BORIS = token("boris", "\"manager\"", "\"M2\"");
     private static final String NOT_MAPPED = token("ivan", "\"manager\"", null);
     private static final String SUPERVISOR = token("olga", "\"supervisor\"", null);
+    private static final String ALL_MANAGERS = token("tester", "\"manager\"", "[\"*\"]");
     private static final String GUEST = """
             {"preferred_username":"demo","azp":"smart-factoring-guest","realm_access":{"roles":["operator","manager"]}}""";
 
@@ -76,6 +77,14 @@ class ManagerAccessTest extends AbstractSmartFactoringBackendTest {
     void managerWithoutMappingSeesNothing() {
         assertThat(Api.getAs("/managers", NOT_MAPPED).body()).isEmpty();
         assertThat(Api.getAs("/clients/" + clientId + "/card", NOT_MAPPED).status()).isEqualTo(403);
+    }
+
+    @Test
+    void managerWithWildcardCodeWorksForEveryone() {
+        assertThat(Api.getAs("/managers", ALL_MANAGERS).body()).singleElement()
+                .satisfies(manager -> assertThat(manager.get("code").asString()).isEqualTo("M1"));
+        assertThat(Api.getAs("/clients/" + clientId + "/card", ALL_MANAGERS).status()).isEqualTo(200);
+        assertThat(Api.postAs("/offers/" + offerId + "/transfer", null, ALL_MANAGERS).status()).isEqualTo(200);
     }
 
     @Test
