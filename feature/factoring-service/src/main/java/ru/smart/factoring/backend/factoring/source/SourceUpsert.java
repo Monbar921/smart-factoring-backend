@@ -4,6 +4,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import ru.smart.factoring.backend.factoring.db.Batches;
 import ru.smart.factoring.backend.api.manualupload.ManualUploadTableStatsDto;
 import ru.smart.factoring.backend.factoring.error.ApiException;
 
@@ -57,7 +58,7 @@ record SourceUpsert(String name, String table, String file, List<String> keys, S
         jdbc.getJdbcTemplate().execute("create temp table " + stage + " on commit drop as select " + columns + " from " + table
                 + " where false");
         jdbc.getJdbcTemplate().execute("alter table " + stage + " add column line integer");
-        execute(() -> jdbc.batchUpdate("insert into " + stage + " (" + columns + ", line) values ("
+        execute(() -> Batches.update(jdbc, "insert into " + stage + " (" + columns + ", line) values ("
                         + columns().stream().map(column -> ":" + column).collect(Collectors.joining(", ")) + ", :line)",
                 rows.stream().map(row -> row.values().addValue("line", row.line())).toArray(MapSqlParameterSource[]::new)));
         // у временной таблицы нет статистики: без неё планировщик считает её пустой и сравнивает строки перебором

@@ -102,6 +102,21 @@ components:
         version: { type: string, example: "pd-2026.10.1" }
         trained_at: { type: string, format: date }
         stub: { type: boolean, description: "true — заглушка, не обученная модель" }
+        reference:
+          type: object
+          nullable: true
+          description: >-
+            Эталон для мониторинга сдвига (PSI): доли уровней риска A–D на выборке разработки модели;
+            null — эталона нет (эвристика, модель задержки)
+          required: [sample, size, cuts, shares]
+          properties:
+            sample: { type: string, example: "pd-1.0: out-of-fold прогнозы обучения, когорта 2022" }
+            size: { type: integer, example: 174351 }
+            cuts: { type: array, items: { type: number }, example: [0.004, 0.015, 0.06] }
+            shares:
+              type: object
+              additionalProperties: { type: number }
+              example: { A: 0.625927, B: 0.234825, C: 0.095434, D: 0.043814 }
 
     Buyer:
       type: object

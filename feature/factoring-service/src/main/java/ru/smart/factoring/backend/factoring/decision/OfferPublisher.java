@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
+import ru.smart.factoring.backend.factoring.db.Batches;
 import ru.smart.factoring.backend.factoring.json.Json;
 import ru.smart.factoring.backend.factoring.model.UpdNumber;
 import ru.smart.factoring.backend.factoring.model.UpdState;
@@ -118,7 +119,7 @@ public class OfferPublisher {
             revoked++;
         }
 
-        jdbc.batchUpdate("""
+        Batches.update(jdbc, """
                         insert into notification (run_id, manager_id, type, client_id, buyer_id, upd_id, offer_id, payload)
                         values (:runId, :managerId, :type, :clientId, :buyerId, :updId, :offerId, cast(:payload as jsonb))""",
                 notifications.toArray(MapSqlParameterSource[]::new));

@@ -89,6 +89,11 @@ public class DecisionStep implements RunStep {
         final Map<String, Long> bySource = new TreeMap<>();
         textSources.forEach((source, count) -> bySource.put(source.name(), count));
         metrics.put("textsBySource", bySource);
+        // мониторинг (Р-87): ответы LLM и доля отклонённых проверкой фактов; карточки, ушедшие в шаблон после двух отказов
+        metrics.put("llmAnswers", offers.stream().mapToInt(offer -> offer.texts().llmAnswers()).sum());
+        metrics.put("llmRejected", offers.stream().mapToInt(offer -> offer.texts().rejected()).sum());
+        metrics.put("llmTemplateAfterFactCheck", offers.stream()
+                .filter(offer -> offer.texts().source() == Explainer.Source.TEMPLATE && offer.texts().rejected() > 0).count());
         // сбой LLM не блокирует предложение (п. 5.3), но шаг - «с предупреждением», чтобы оператор его увидел
         return textSources.getOrDefault(Explainer.Source.FAILED, 0L) > 0 ? Result.warning(metrics) : Result.done(metrics);
     }

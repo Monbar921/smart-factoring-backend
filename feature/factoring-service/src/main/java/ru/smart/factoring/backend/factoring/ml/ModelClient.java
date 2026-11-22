@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Сервис моделей: PD покупателя и задержка по УПД (блок 4). Контракт - docs/claude/module-0/ml-service-openapi.yaml.
@@ -18,7 +19,19 @@ public interface ModelClient {
 
     DelayResponse scoreDelay(DelayRequest request);
 
-    record Versions(String pd, String delay, boolean stub) {
+    /**
+     * @param pdReference эталон модели PD для мониторинга сдвига (PSI, Р-87); null - у модели его нет
+     */
+    record Versions(String pd, String delay, boolean stub, Reference pdReference) {
+        public Versions(final String pd, final String delay, final boolean stub) {
+            this(pd, delay, stub, null);
+        }
+    }
+
+    /**
+     * Эталонное распределение уровней риска на выборке разработки модели: границы cuts, доли уровней A-D (Р-87).
+     */
+    record Reference(String sample, Long size, List<BigDecimal> cuts, Map<String, BigDecimal> shares) {
     }
 
     record Financials(int year, Boolean simplified, BigDecimal assetsTotal, BigDecimal currentAssets, BigDecimal receivables,

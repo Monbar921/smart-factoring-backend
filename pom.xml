@@ -26,7 +26,8 @@
         <vavr.version>1.0.1</vavr.version>
         <apache.commons.collections.version>4.6.0</apache.commons.collections.version>
 
-        <shedlock-spring.version>4.44.0</shedlock-spring.version>
+        <!-- ShedLock 7 - под Spring 7 / Boot 4: ночной прогон по расписанию (Р-85) -->
+        <shedlock.version>7.10.1</shedlock.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <test-containers.version>2.0.5</test-containers.version>
         <checkstyle.version>14.1.0</checkstyle.version>
@@ -96,6 +97,17 @@
                 <groupId>com.puppycrawl.tools</groupId>
                 <artifactId>checkstyle</artifactId>
                 <version>${checkstyle.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>net.javacrumbs.shedlock</groupId>
+                <artifactId>shedlock-spring</artifactId>
+                <version>${shedlock.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.javacrumbs.shedlock</groupId>
+                <artifactId>shedlock-provider-jdbc-template</artifactId>
+                <version>${shedlock.version}</version>
             </dependency>
 
             <dependency>

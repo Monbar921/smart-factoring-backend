@@ -65,10 +65,12 @@ public class RunService {
     private final JdbcClient jdbc;
     private final Json json;
     private final RunFingerprint runFingerprint;
+    private final RunScheduleProperties schedule;
 
     public RunDefaultsDto defaults() {
         return new RunDefaultsDto(sourceCatalog.dataDate().orElse(null), sourceCatalog.snapshotDate().orElse(null),
-                sourceCatalog.eligibleClients(), runRepository.findRunningId().orElse(null), sourceCatalog.batches());
+                sourceCatalog.eligibleClients(), runRepository.findRunningId().orElse(null), sourceCatalog.batches(),
+                schedule.info());
     }
 
     /**

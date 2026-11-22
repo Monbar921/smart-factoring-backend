@@ -815,4 +815,46 @@
         </sql>
     </changeSet>
 
+    <!-- Р-85: ночной прогон по расписанию - свой тип запуска -->
+    <changeSet id="SMF-33-run-initiator-schedule" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".run drop constraint run_initiator_type_check;
+            alter table "${schema}".run add constraint run_initiator_type_check
+                check (initiator_type in ('OPERATOR', 'API', 'SCHEDULE'));
+        </sql>
+    </changeSet>
+
+    <!--
+        Р-86: событие ЕФРСБ между прогонами отзывает предложения (причина STOP_FACTOR), шлёт сигнал в риск и уведомляет
+        менеджера. Такие уведомления и сигналы - вне прогона (run_id null), источник сигнала - RUN или EFRSB.
+    -->
+    <changeSet id="SMF-33-efrsb-event-reaction" author="Monbar921">
+        <sql endDelimiter=";">
+            alter table "${schema}".offer drop constraint offer_revoke_reason_check;
+            alter table "${schema}".offer add constraint offer_revoke_reason_check
+                check (revoke_reason in ('UPD_PAID', 'UPD_OVERDUE', 'NO_LONGER_ELIGIBLE', 'STOP_FACTOR'));
+
+            alter table "${schema}".notification alter column run_id drop not null;
+            alter table "${schema}".notification drop constraint notification_type_check;
+            alter table "${schema}".notification add constraint notification_type_check
+                check (type in ('NEW_OFFER', 'OFFER_CHANGED', 'OFFER_REVOKED', 'OVERDUE', 'REMINDER', 'RISK_SIGNAL'));
+            comment on column "${schema}".notification.run_id is 'null - уведомление вне прогона: событие ЕФРСБ (Р-86)';
+
+            alter table "${schema}".imitation_risk_signal alter column run_id drop not null;
+            alter table "${schema}".imitation_risk_signal add column source varchar(16) not null default 'RUN'
+                check (source in ('RUN', 'EFRSB'));
+            comment on column "${schema}".imitation_risk_signal.source is 'RUN - просрочка в прогоне (п. 3.10 в), EFRSB - событие по покупателю (Р-86)';
+        </sql>
+    </changeSet>
+
+    <!--
+        Р-88: на объёме сегмента вставка уведомлений о просрочке с проверкой «уже было на эту дату» шла квадратично:
+        без индекса по УПД каждая строка просматривала всю таблицу notification
+    -->
+    <changeSet id="SMF-33-notification-upd-index" author="Monbar921">
+        <sql endDelimiter=";">
+            create index ix_notification_upd_type on "${schema}".notification (upd_id, type) where upd_id is not null;
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
+import ru.smart.factoring.backend.factoring.db.Batches;
 import ru.smart.factoring.backend.factoring.json.Json;
 
 import java.util.List;
@@ -52,7 +53,7 @@ public class RunLog {
                         .addValue("message", entry.message())
                         .addValue("details", json.write(entry.details())))
                 .toArray(MapSqlParameterSource[]::new);
-        jdbc.batchUpdate(INSERT, batch);
+        Batches.update(jdbc, INSERT, batch);
     }
 
     public enum Level {

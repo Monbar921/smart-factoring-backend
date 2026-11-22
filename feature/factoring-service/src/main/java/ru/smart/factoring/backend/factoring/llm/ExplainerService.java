@@ -100,22 +100,23 @@ public class ExplainerService implements Explainer {
                 if (cached != null) {
                     yield cached;
                 }
+                final int[] count = new int[2];
                 try {
                     // без показателей покупателя (PD из партии данных) LLM нечего объяснять: на месте пустого списка она
                     // подставляла пометки предложения - причины шаблоном, черновик клиенту по-прежнему от LLM (Р-61)
-                    final String reasons = facts.reasons().isEmpty() ? templateReasons(facts) : checked(reasonsPrompt, facts);
-                    final String draft = checked(draftPrompt, facts);
+                    final String reasons = facts.reasons().isEmpty() ? templateReasons(facts) : checked(reasonsPrompt, facts, count);
+                    final String draft = checked(draftPrompt, facts, count);
                     if (reasons == null || draft == null) {
                         // LLM дважды ответила с домыслами: такой текст менеджеру не показываем, вместо него - шаблон
                         yield Texts.of(reasons != null ? reasons : templateReasons(facts), draft != null ? draft : templateDraft(facts),
-                                Source.TEMPLATE);
+                                Source.TEMPLATE).counted(count[0], count[1]);
                     }
                     final Texts texts = Texts.of(reasons, draft, Source.LLM);
                     cache(hash, texts);
-                    yield texts;
+                    yield texts.counted(count[0], count[1]);
                 } catch (RuntimeException e) {
                     log.warn("LLM недоступна, карточка {} без черновика: {}", facts.updNumber(), e.getMessage());
-                    yield new Texts(templateReasons(facts), null, Source.FAILED, e.getMessage());
+                    yield new Texts(templateReasons(facts), null, Source.FAILED, e.getMessage()).counted(count[0], count[1]);
                 }
             }
             case "off" -> Texts.of(templateReasons(facts), null, Source.TEMPLATE);
@@ -125,22 +126,27 @@ public class ExplainerService implements Explainer {
 
     /**
      * Ответ LLM, проверенный на домыслы (Р-59), с настоящими значениями вместо меток (Р-73): с домыслом или искажённой
-     * меткой - один повтор с напоминанием, снова - null (будет шаблон).
+     * меткой - один повтор с напоминанием, снова - null (будет шаблон). count[0] - ответов LLM, count[1] - из них
+     * отклонённых (мониторинг, Р-87).
      */
-    private String checked(final String systemPrompt, final ExplanationFacts facts) {
+    private String checked(final String systemPrompt, final ExplanationFacts facts, final int[] count) {
         final Pseudonyms pseudonyms = Pseudonyms.of(facts, properties.masked());
         final String input = pseudonyms.facts().describe();
         final String first = complete(systemPrompt, input);
+        count[0]++;
         final String found = problem(first, input, pseudonyms);
         if (found == null) {
             return pseudonyms.restore(first);
         }
+        count[1]++;
         log.info("Карточка {}: в ответе LLM домысел «{}…», запрос повторён", facts.updNumber(), found);
         final String second = complete(systemPrompt + RETRY_NOTE, input);
+        count[0]++;
         final String again = problem(second, input, pseudonyms);
         if (again == null) {
             return pseudonyms.restore(second);
         }
+        count[1]++;
         log.warn("Карточка {}: в ответе LLM снова домысел «{}…» - текст шаблоном", facts.updNumber(), again);
         return null;
     }

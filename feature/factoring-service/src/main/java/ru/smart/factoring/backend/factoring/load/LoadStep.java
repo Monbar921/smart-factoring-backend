@@ -30,6 +30,8 @@ public class LoadStep implements RunStep {
      * Клиенты, которых загружает блок 1: с согласием на ЭДО и не клиенты факторинга (сноска к п. 1.1).
      */
     private static final String ELIGIBLE = "dc.edo_consent and not dc.factoring_client";
+    /** предел одного запроса шага загрузки: сегмент целиком переносится за десятки секунд, с запасом */
+    private static final String LOAD_STATEMENT_TIMEOUT = "5min";
 
     private final NamedParameterJdbcTemplate jdbc;
     private final TransactionTemplate transactionTemplate;
@@ -51,6 +53,9 @@ public class LoadStep implements RunStep {
     }
 
     private Result load(final RunContext context) {
+        // перенос источников - несколько запросов на весь объём сразу: на сегменте (680 тыс. УПД) запрос идёт дольше
+        // общего statement_timeout 30 с (application.yml). SET LOCAL - только на транзакцию шага (Р-88)
+        jdbc.getJdbcTemplate().execute("set local statement_timeout = '" + LOAD_STATEMENT_TIMEOUT + "'");
         final MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("runId", context.getRunId())
                 .addValue("calcDate", context.getCalcDate())

@@ -21,6 +21,7 @@ import ru.smart.factoring.backend.api.details.RunClientDto;
 import ru.smart.factoring.backend.api.details.RunUpdDto;
 import ru.smart.factoring.backend.api.details.UpdTraceDto;
 import ru.smart.factoring.backend.api.economics.EconomicEffectDto;
+import ru.smart.factoring.backend.api.monitoring.MonitoringDto;
 import ru.smart.factoring.backend.api.run.InitiatorType;
 import ru.smart.factoring.backend.api.run.RunAttemptDto;
 import ru.smart.factoring.backend.api.run.RunDefaultsDto;
@@ -31,6 +32,7 @@ import ru.smart.factoring.backend.api.run.StartRunRequest;
 import ru.smart.factoring.backend.api.run.StartRunResponse;
 import ru.smart.factoring.backend.factoring.details.RunDetailsService;
 import ru.smart.factoring.backend.factoring.economics.EconomicEffectService;
+import ru.smart.factoring.backend.factoring.monitoring.MonitoringService;
 import ru.smart.factoring.backend.factoring.offer.ManagerAccess;
 import ru.smart.factoring.backend.factoring.run.RunRepository;
 import ru.smart.factoring.backend.factoring.run.RunService;
@@ -58,6 +60,7 @@ public class RunController {
     private final RunService runService;
     private final RunDetailsService runDetailsService;
     private final EconomicEffectService economicEffectService;
+    private final MonitoringService monitoringService;
     private final ManagerAccess access;
     /** клиент Keycloak гостевого входа «Запуск демо»: его токен - только просмотр (П4-1) */
     @Value("${smart-factoring.guest-client-id:smart-factoring-guest}")
@@ -110,6 +113,15 @@ public class RunController {
     @GetMapping("/{runId}")
     public RunDto get(@PathVariable final long runId, final @Nullable JwtPayload user) {
         return runService.get(runId, access.runScope(user));
+    }
+
+    /**
+     * Мониторинг моделей и LLM по запуску (Р-87): версии, распределение оценок, PSI, доля ответов LLM, отклонённых
+     * проверкой фактов. Сводные цифры без названий и реквизитов - видны всем ролям экрана.
+     */
+    @GetMapping("/{runId}/monitoring")
+    public MonitoringDto monitoring(@PathVariable final long runId) {
+        return monitoringService.monitoring(runId);
     }
 
     @GetMapping("/{runId}/log")

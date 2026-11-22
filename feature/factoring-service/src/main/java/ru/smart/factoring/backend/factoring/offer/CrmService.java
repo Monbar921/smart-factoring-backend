@@ -45,6 +45,12 @@ public class CrmService {
      */
     private static final String NOTIFICATION_RUNS = "(select r.id from run r where r.status in ('DONE', 'DONE_WITH_WARNINGS')"
             + " and r.calc_date = (select calc_date from run where id = " + LAST_SUCCESSFUL_RUN + "))";
+    /**
+     * Уведомления менеджера: прогонов на дату расчёта последнего и вне прогона - по событиям ЕФРСБ за 30 дней (Р-86):
+     * ночной прогон после события уже ничего не сообщит о покупателе, а менеджер должен узнать об отзыве.
+     */
+    private static final String MANAGER_NOTIFICATIONS = "(n.run_id in " + NOTIFICATION_RUNS
+            + " or (n.run_id is null and n.created_at >= now() - interval '30 days'))";
 
     private final NamedParameterJdbcTemplate jdbc;
     private final OfferQueries offers;
@@ -55,8 +61,8 @@ public class CrmService {
         return jdbc.query("""
                         select m.id, m.code, m.full_name,
                                (select count(*) from offer o where o.manager_id = m.id and o.status = 'QUEUED') as queued,
-                               (select count(*) from notification n where n.manager_id = m.id and n.run_id in %s) as notifications
-                        from manager m order by m.full_name""".formatted(NOTIFICATION_RUNS), new MapSqlParameterSource(),
+                               (select count(*) from notification n where n.manager_id = m.id and %s) as notifications
+                        from manager m order by m.full_name""".formatted(MANAGER_NOTIFICATIONS), new MapSqlParameterSource(),
                 (rs, rowNum) -> new ManagerDto(rs.getLong("id"), rs.getString("code"), rs.getString("full_name"), rs.getInt("queued"),
                         rs.getInt("notifications")));
     }
@@ -74,15 +80,15 @@ public class CrmService {
                 .addValue("type", type)
                 .addValue("size", pageSize)
                 .addValue("offset", (long) Math.max(page, 0) * pageSize);
-        final String where = " where n.manager_id = :managerId and n.run_id in " + NOTIFICATION_RUNS
+        final String where = " where n.manager_id = :managerId and " + MANAGER_NOTIFICATIONS
                 + " and (cast(:type as varchar) is null or n.type = :type)";
         final List<NotificationDto> items = jdbc.query("""
                         select n.*, c.inn as client_inn, c.name as client_name, b.inn as buyer_inn, b.name as buyer_name, u.number as upd_number
                         from notification n
                         left join client c on c.id = n.client_id
                         left join buyer b on b.id = n.buyer_id
-                        left join upd u on u.id = n.upd_id""" + where + " order by n.id limit :size offset :offset", params,
-                (rs, rowNum) -> new NotificationDto(rs.getLong("id"), rs.getLong("run_id"), rs.getString("type"),
+                        left join upd u on u.id = n.upd_id""" + where + " order by (n.run_id is null) desc, n.id limit :size offset :offset", params,
+                (rs, rowNum) -> new NotificationDto(rs.getLong("id"), rs.getObject("run_id", Long.class), rs.getString("type"),
                         rs.getObject("created_at", OffsetDateTime.class),
                         ref(rs.getObject("client_id", Long.class), rs.getString("client_inn"), rs.getString("client_name")),
                         ref(rs.getObject("buyer_id", Long.class), rs.getString("buyer_inn"), rs.getString("buyer_name")),
@@ -126,7 +132,10 @@ public class CrmService {
                                bs.pd, bs.risk_level, bs.reasons, s.p_delay, s.p_overdue_90, s.expected_delay_days,
                                d.reason,
                                (select o.id from offer o where o.upd_id = u.id and o.status = 'QUEUED') as offer_id,
-                               (select o.status from offer o where o.upd_id = u.id and o.status in ('QUEUED', 'TRANSFERRED', 'REJECTED')
+                               (select o.status from offer o where o.upd_id = u.id
+                                    and (o.status in ('QUEUED', 'TRANSFERRED', 'REJECTED')
+                                         -- отозвано событием ЕФРСБ после этого прогона (Р-86)
+                                         or (o.status = 'REVOKED' and o.revoke_reason = 'STOP_FACTOR' and o.last_run_id = us.run_id))
                                 order by o.id desc limit 1) as offer_status
                         from upd_state us
                         join upd u on u.id = us.upd_id

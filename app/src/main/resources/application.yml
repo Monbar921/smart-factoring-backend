@@ -28,6 +28,10 @@ spring:
       password: ${POSTGRES_PASSWORD}
       jdbc-url: ${POSTGRES_JDBC}
       username: ${POSTGRES_USER}
+      # пакетные вставки одним многострочным INSERT, а не строкой на запрос: на объёме сегмента импорт и шаги 2, 3, 5
+      # в 3-6 раз быстрее (Р-88, docs/scaling.md); счётчики строк batchUpdate код не использует
+      data-source-properties:
+        reWriteBatchedInserts: true
   liquibase:
     change-log: classpath:liquibase/db.changelog-master.xml
     default-schema: ${POSTGRES_SCHEMA:smart_factoring_test}
@@ -59,6 +63,15 @@ smart-factoring:
     manager-hour-cost: ${ECONOMICS_MANAGER_HOUR_COST:1500}
     # часов на ставку в год (норма при 40-часовой неделе)
     fte-hours-per-year: ${ECONOMICS_FTE_HOURS_PER_YEAR:1970}
+  # ночной прогон по расписанию (Р-85): по всем клиентам, от имени «по расписанию»; на тех же данных, что прошлый
+  # успешный прогон, не запускается (отпечаток) - отказ виден в журнале попыток. Один запуск на все экземпляры (ShedLock)
+  schedule:
+    enabled: ${RUN_SCHEDULE_ENABLED:true}
+    # cron Spring: секунды минуты часы день месяц день недели
+    cron: ${RUN_SCHEDULE_CRON:0 0 3 * * *}
+    zone: ${RUN_SCHEDULE_ZONE:Europe/Moscow}
+    # data - дата расчёта = последняя дата данных в источниках (демо), today - сегодня (пилот, источники обновляются ежедневно)
+    calc-date: ${RUN_SCHEDULE_CALC_DATE:data}
   manual-upload:
     # каталог на сервере, из которого POST /manual-upload берёт выгрузку генератора по относительному пути
     import-dir: ${MANUAL_UPLOAD_DIR:/data/manual-upload}
