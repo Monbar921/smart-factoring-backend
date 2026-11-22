@@ -75,10 +75,6 @@ public class ScoringStep implements RunStep {
         final String delayVersion = versions.value() != null ? versions.value().delay() : UNAVAILABLE;
         context.getModelVersions().put("pd", pdVersion);
         context.getModelVersions().put("delay", delayVersion);
-        // эталон модели PD для мониторинга сдвига (Р-87) - вместе с запуском: у другой версии модели он другой
-        if (versions.value() != null && versions.value().pdReference() != null) {
-            context.getSummary().put("pdReference", versions.value().pdReference());
-        }
         if (versions.value() == null) {
             log.add(RunLog.Entry.of(runId, RunLog.Level.ERROR, STEP_NO, "SCORING_ERROR",
                     "Версии моделей не получены: " + versions.error()));

@@ -37,12 +37,9 @@ UI берёт из своего словаря. Причины отказа: `UP
   "snapshotDate": "2026-10-20",
   "clients": [ { "id": null, "inn": "7710000001", "name": "ООО «Альфа-Трейд»" } ],
   "runningRunId": null,
-  "batches": [],
-  "schedule": { "enabled": true, "cron": "0 0 3 * * *", "zone": "Europe/Moscow", "nextAt": "2026-11-22T03:00:00+03:00" }
+  "batches": []
 }
 ```
-
-`schedule` — ночной анализ по расписанию (Р-85): `nextAt` — следующий запуск, `null` — расписание выключено.
 
 ### `POST /runs` — запуск (ПР-2, ПР-3)
 
@@ -53,9 +50,7 @@ UI берёт из своего словаря. Причины отказа: `UP
 успешный прогон и нет `force` — `409 RUN_ALREADY_DONE`; гостевой токен — `403 FORBIDDEN`. Каждая попытка, и
 отклонённая, пишется в журнал попыток.
 Инициатор берётся из JWT (`preferred_username`), тип — `OPERATOR` с экрана процесса, `API` при заголовке
-`X-Initiator-Type: API`. Ночной анализ по расписанию (Р-85) запускается внутри backend тем же путём: тип `SCHEDULE`,
-инициатор «по расписанию», роль «система», все клиенты, без `force` — на тех же данных он отклоняется
-`RUN_ALREADY_DONE` и виден в журнале попыток.
+`X-Initiator-Type: API`. Тип `SCHEDULE` — у запусков удалённого ночного анализа (Р-85, Р-89), новые так не создаются.
 
 ### `GET /runs?page&size` — история прогонов (ЭП-8)
 
@@ -114,28 +109,6 @@ UI опрашивает раз в 2–3 с, пока `status = RUNNING`.
   `scoringErrors`, `pdFromCache`;
 - шаг 5: `offers`, `noOffers`, `noOfferByReason {код: число}`, `eadTotal`, `incomeTotal`, `expectedAccepted` (Σ TR, М-7),
   `queuedOffers`, `newOfferNotifications`, `revokedOffers`, `reminders`.
-
-### `GET /runs/{id}/economics` — экономический эффект (Р-76)
-
-Параметры: `fundingRate` и `trBase` — доли (`0.16`, `0.07`), без них — ставки запуска; вне (0; 1] — `400`. Идущий
-запуск — `409 RUN_NOT_FINISHED`. Ответ: `run` и `scenario` (ставки), `base` и `result` (предложения при ставках
-запуска и сценария: `offers`, `belowMinIncome`, `portfolioEad`, `portfolioIncome`, `expectedDeals`, `expectedEad`,
-`revenue`, `funding`, `expectedLoss`, `opex`, `income`, `avgTermDays`), `year` (`turnover`, `expectedEad`, `income`),
-`time` (`savedHoursPerYear`, `savedFte`, `savedRub`), `scales[]` (`DEMO`, `CORE`, `SEGMENT`: `clients`, `expectedEad`,
-`income`, `runCost`, `effect`, `savedFte`, `paybackMonths` — `null`, если не окупается), `assumptions`. Метод —
-`docs/economics.md`.
-
-### `GET /runs/{id}/monitoring` — мониторинг моделей и LLM (Р-87)
-
-Ответ: `models` (`pd`, `delay`, `llm`); `pd` — `buyers`, `bySource` (`MODEL`, `BASE`), `stopFactors`, `fromCache`, `meanPd`,
-`levels[]` и `modelLevels[]` (`{label, count, share}` по уровням A–D; `modelLevels` — только PD модели, по границам
-эталона), `psiReference` (к выборке разработки модели, `null` — у модели нет эталона), `psiPrevious` (к прошлому
-успешному запуску на той же версии модели), `reference` (`sample`, `size`, `cuts`, `shares`); `delay` — `upds`,
-`byStatus`, `meanPDelay`, `thresholdDays`, `buckets[]` (`< 10 %` … `≥ 50 %`), `psiPrevious`; `llm` — `provider`, `cards`,
-`bySource`, `answers`, `rejected` (отклонено проверкой фактов или искажённой меткой), `rejectedShare`,
-`templateAfterFactCheck`; `history[]` — до 10 последних успешных запусков (`runId`, `calcDate`, `pdVersion`, `buyers`,
-`psiReference`, `psiPrevious`, `llmRejectedShare`). PSI — `{value, status: STABLE|WATCH|SHIFT, baseline, baselineRunId, n}`,
-пороги 0,1 и 0,25. Нет запуска — `404`. Видят все роли экрана.
 
 ### `GET /runs/{id}/funnel` — воронка (ЭП-4)
 

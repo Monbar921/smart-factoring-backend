@@ -5,7 +5,8 @@ package ru.smart.factoring.backend.api.run;
  * <ul>
  *     <li>OPERATOR - оператор с экрана процесса;</li>
  *     <li>API - вызов API (заголовок X-Initiator-Type);</li>
- *     <li>SCHEDULE - ночной прогон по расписанию (Р-85).</li>
+ *     <li>SCHEDULE - ночной прогон по расписанию (Р-85); сам прогон удалён, значение оставлено для уже
+ *     сохранённых запусков (ограничение run_initiator_type_check его допускает).</li>
  * </ul>
  */
 public enum InitiatorType {

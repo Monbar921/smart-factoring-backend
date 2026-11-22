@@ -35,7 +35,7 @@ public class HttpModelClient implements ModelClient {
         final String body = client.get().uri("/v1/models").retrieve().body(String.class);
         final ModelsInfo info = mapper.readValue(body, ModelsInfo.class);
         return new Versions(info.pd().version(), info.delay().version(),
-                Boolean.TRUE.equals(info.pd().stub()) || Boolean.TRUE.equals(info.delay().stub()), info.pd().reference());
+                Boolean.TRUE.equals(info.pd().stub()) || Boolean.TRUE.equals(info.delay().stub()));
     }
 
     @Override
@@ -57,7 +57,7 @@ public class HttpModelClient implements ModelClient {
         return mapper.readValue(body, type);
     }
 
-    private record ModelVersion(String version, Boolean stub, Reference reference) {
+    private record ModelVersion(String version, Boolean stub) {
     }
 
     private record ModelsInfo(ModelVersion pd, ModelVersion delay) {

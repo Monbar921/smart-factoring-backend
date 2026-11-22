@@ -4,7 +4,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import ru.smart.factoring.backend.factoring.economics.EconomicsProperties;
 import ru.smart.factoring.backend.factoring.llm.DisabledLlmClient;
 import ru.smart.factoring.backend.factoring.llm.GigaChatClient;
 import ru.smart.factoring.backend.factoring.llm.LlmClient;
@@ -15,14 +14,12 @@ import ru.smart.factoring.backend.factoring.ml.HttpModelClient;
 import ru.smart.factoring.backend.factoring.ml.ModelClient;
 import ru.smart.factoring.backend.factoring.ml.ModelProperties;
 import ru.smart.factoring.backend.factoring.ml.StubModelClient;
-import ru.smart.factoring.backend.factoring.run.RunScheduleProperties;
 import ru.smart.factoring.backend.factoring.source.ManualUploadProperties;
 
 import java.util.Locale;
 
 @Configuration
-@EnableConfigurationProperties({ManualUploadProperties.class, ModelProperties.class, LlmProperties.class,
-        EconomicsProperties.class, RunScheduleProperties.class})
+@EnableConfigurationProperties({ManualUploadProperties.class, ModelProperties.class, LlmProperties.class})
 public class FactoringConfiguration {
     private static final int DEFAULT_LLM_THREADS = 8;
 
