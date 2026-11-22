@@ -3,6 +3,10 @@ package ru.smart.factoring.backend.security;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Payload access token Keycloak, с которым пришёл запрос.
@@ -21,6 +25,8 @@ import java.util.Map;
  * @param claims все claims токена как есть
  */
 public record JwtPayload(Map<String, Object> claims) {
+    /** claim с кодами менеджеров пользователя, см. {@link #managerCodes()} */
+    public static final String MANAGER_CODES = "manager_codes";
 
     /**
      * Id пользователя в Keycloak.
@@ -60,6 +66,17 @@ public record JwtPayload(Map<String, Object> claims) {
 
     public boolean hasRole(final String role) {
         return roles().contains(role);
+    }
+
+    /**
+     * Коды менеджеров (managers.csv), за которых работает пользователь: claim {@value #MANAGER_CODES}, его кладёт в токен
+     * mapper Keycloak из атрибута пользователя manager_code. Один код без multivalued приходит строкой - тоже принимаем.
+     */
+    public Set<String> managerCodes() {
+        final Object value = claims.get(MANAGER_CODES);
+        final Stream<?> codes = value instanceof Collection<?> collection ? collection.stream() : Stream.ofNullable(value);
+        return codes.filter(Objects::nonNull).map(String::valueOf).map(String::trim).filter(code -> !code.isEmpty())
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     private String string(final String claim) {

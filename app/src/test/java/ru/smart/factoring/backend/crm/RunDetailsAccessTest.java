@@ -21,15 +21,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Объектный доступ на экране процесса (НФР-9, п. 1.1а-21): менеджер видит в детализации запуска только своих клиентов,
  * их УПД, покупателей и записи журнала; путь чужого УПД - 403. Оператор и руководитель видят всех.
  * <p>
- * В test application.yml: anna - менеджер M1, Boris - M2. После запуска один клиент фикстуры переходит к M2 (Boris),
+ * В токенах: anna - менеджер M1, boris - M2. После запуска один клиент фикстуры переходит к M2 (Boris),
  * остальные остаются у M1 (anna).
  */
 class RunDetailsAccessTest extends AbstractSmartFactoringBackendTest {
-    private static final String ANNA = token("anna", "\"manager\"");
-    private static final String BORIS = token("boris", "\"manager\"");
-    private static final String NOT_MAPPED = token("ivan", "\"manager\"");
-    private static final String OPERATOR = token("oleg", "\"operator\"");
-    private static final String SUPERVISOR = token("olga", "\"supervisor\"");
+    private static final String ANNA = token("anna", "\"manager\"", "[\"M1\"]");
+    private static final String BORIS = token("boris", "\"manager\"", "\"M2\"");
+    private static final String NOT_MAPPED = token("ivan", "\"manager\"", null);
+    private static final String OPERATOR = token("oleg", "\"operator\"", null);
+    private static final String SUPERVISOR = token("olga", "\"supervisor\"", null);
     private static final String BORIS_CLIENT_INN = "7710000001";
 
     @Autowired
@@ -163,7 +163,11 @@ class RunDetailsAccessTest extends AbstractSmartFactoringBackendTest {
         return ids;
     }
 
-    private static String token(final String login, final String roles) {
-        return "{\"preferred_username\":\"" + login + "\",\"azp\":\"smart-factoring-ui\",\"realm_access\":{\"roles\":[" + roles + "]}}";
+    /**
+     * @param managerCodes значение claim manager_codes как JSON (массив или строка), null - claim нет
+     */
+    private static String token(final String login, final String roles, final String managerCodes) {
+        return "{\"preferred_username\":\"" + login + "\",\"azp\":\"smart-factoring-ui\",\"realm_access\":{\"roles\":[" + roles + "]}"
+                + (managerCodes != null ? ",\"manager_codes\":" + managerCodes : "") + "}";
     }
 }

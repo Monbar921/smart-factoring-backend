@@ -15,14 +15,14 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Карточку и предложения видит только менеджер клиента (НФР-9, Р-75). В test application.yml: anna - менеджер M1
- * (все клиенты фикстуры), Boris - M2 (клиентов нет).
+ * Карточку и предложения видит только менеджер клиента (НФР-9, Р-75). Коды менеджеров - в claim manager_codes токена
+ * (Р-90): anna - M1 (все клиенты фикстуры, массивом), boris - M2 (клиентов нет, строкой - один код без multivalued).
  */
 class ManagerAccessTest extends AbstractSmartFactoringBackendTest {
-    private static final String ANNA = token("anna", "\"manager\"");
-    private static final String BORIS = token("boris", "\"manager\"");
-    private static final String NOT_MAPPED = token("ivan", "\"manager\"");
-    private static final String SUPERVISOR = token("olga", "\"supervisor\"");
+    private static final String ANNA = token("anna", "\"manager\"", "[\"M1\"]");
+    private static final String BORIS = token("boris", "\"manager\"", "\"M2\"");
+    private static final String NOT_MAPPED = token("ivan", "\"manager\"", null);
+    private static final String SUPERVISOR = token("olga", "\"supervisor\"", null);
     private static final String GUEST = """
             {"preferred_username":"demo","azp":"smart-factoring-guest","realm_access":{"roles":["operator","manager"]}}""";
 
@@ -60,7 +60,6 @@ class ManagerAccessTest extends AbstractSmartFactoringBackendTest {
 
     @Test
     void otherManagerGetsForbidden() {
-        // логин сравнивается без учёта регистра: в настройке «Boris», в токене «boris»
         assertThat(Api.getAs("/managers", BORIS).body()).isEmpty();
         for (final String path : new String[] {"/managers/" + managerId + "/queue", "/managers/" + managerId + "/notifications",
                 "/clients/" + clientId + "/card"}) {
@@ -87,7 +86,11 @@ class ManagerAccessTest extends AbstractSmartFactoringBackendTest {
         assertThat(Api.getAs("/managers/" + managerId + "/queue", GUEST).status()).isEqualTo(200);
     }
 
-    private static String token(final String login, final String roles) {
-        return "{\"preferred_username\":\"" + login + "\",\"azp\":\"smart-factoring-ui\",\"realm_access\":{\"roles\":[" + roles + "]}}";
+    /**
+     * @param managerCodes значение claim manager_codes как JSON (массив или строка), null - claim нет
+     */
+    private static String token(final String login, final String roles, final String managerCodes) {
+        return "{\"preferred_username\":\"" + login + "\",\"azp\":\"smart-factoring-ui\",\"realm_access\":{\"roles\":[" + roles + "]}"
+                + (managerCodes != null ? ",\"manager_codes\":" + managerCodes : "") + "}";
     }
 }
