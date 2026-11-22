@@ -25,22 +25,12 @@ public interface Explainer {
 
     /**
      * @param source откуда тексты
-     * @param error      причина сбоя LLM для source = FAILED (в журнал прогона)
-     * @param llmAnswers ответов LLM на эту карточку в этом прогоне (с повторами)
-     * @param rejected   из них отклонено проверкой фактов или искажённой меткой (Р-59, Р-73) - для мониторинга (Р-87)
+     * @param error  причина сбоя LLM для source = FAILED (в журнал прогона)
      */
-    record Texts(String reasonsText, String messageDraft, Source source, String error, int llmAnswers, int rejected) {
-
-        public Texts(final String reasonsText, final String messageDraft, final Source source, final String error) {
-            this(reasonsText, messageDraft, source, error, 0, 0);
-        }
+    record Texts(String reasonsText, String messageDraft, Source source, String error) {
 
         public static Texts of(final String reasonsText, final String messageDraft, final Source source) {
             return new Texts(reasonsText, messageDraft, source, null);
-        }
-
-        public Texts counted(final int answers, final int rejectedAnswers) {
-            return new Texts(reasonsText, messageDraft, source, error, answers, rejectedAnswers);
         }
     }
 

@@ -520,5 +520,17 @@ REST-контроллеры — в `ui-service` (как сейчас `Maintenanc
   прогона сегмента, 82 %), и память — импорт CSV целиком (пик 2,5 ГБ) и данные всех клиентов между шагами (3,1 ГБ). Почему не параллелить шаг 4 сейчас: на стенде у сервиса моделей 1 CPU,
   параллельные запросы без `ML_WORKERS` > 1 и CPU ничего не дадут, а пилот — около 100 клиентов, где прогон идёт
   секунды. Результаты, узкое место и план — `docs/scaling.md`.
+- **Р-89. Экономический эффект, мониторинг моделей и ночной анализ удалены** (22.11.2026, решение пользователя).
+  Убраны из ui, backend, ml и deploy (gateway проксирует `/api/backend/**` целиком — в нём нечего менять): вкладка «Экономический
+  эффект» и `GET /runs/{id}/economics` с `EconomicEffectService` и `smart-factoring.economics` (Р-76); вкладка
+  «Мониторинг моделей» и `GET /runs/{id}/monitoring` с `MonitoringService`, счётчиками ответов LLM в `Explainer.Texts`,
+  метриками шага 5 `llmAnswers`/`llmRejected`/`llmTemplateAfterFactCheck` и эталоном `pdReference` в сводке запуска
+  (Р-87); ночной анализ `ScheduledRun` с ShedLock, `smart-factoring.schedule` и полем `schedule` в `GET /runs/defaults`
+  (Р-85). Осталось намеренно: значение `SCHEDULE` в `InitiatorType` и changeset `SMF-33-run-initiator-schedule` — на
+  стенде уже могут быть такие запуски, применённый changeset не правим; таблица `shedlock` (была до Р-85);
+  финансовая модель xlsx и `docs/economics.md` как результат 21.11.2026. В smart-factoring-ml убрано поле
+  `pd.reference` из `/v1/models` (эталон PSI) с тестом, в smart-factoring-deploy — переменные `RUN_SCHEDULE_ENABLED`
+  и `RUN_SCHEDULE_CRON` (workflow, docker-compose, README); переменных `ECONOMICS_*` в deploy не было, `LLM_MAX_TOKENS`
+  из того же коммита — настройка LLM, оставлена.
 - **Р-24. Контракт API backend — в markdown**, DTO и контроллеры пишем в модулях, где они нужны.
 - **Порядок:** UI раньше реального ML (ML всё равно у коллеги, backend и UI работают на заглушке сервиса моделей).

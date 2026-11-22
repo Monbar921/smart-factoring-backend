@@ -151,7 +151,6 @@ class RunDetailsAccessTest extends AbstractSmartFactoringBackendTest {
     void runListAndSummaryStayVisible() {
         assertThat(Api.getAs("/runs", ANNA).status()).isEqualTo(200);
         assertThat(Api.getAs(runPath(""), BORIS).status()).isEqualTo(200);
-        assertThat(Api.getAs(runPath("/economics"), BORIS).status()).isEqualTo(200);
     }
 
     private String runPath(final String suffix) {

@@ -36,9 +36,6 @@ smart-factoring:
   access:
     # anna - менеджер клиентов фикстуры (M1), boris - менеджер, у которого в фикстуре клиентов нет
     manager-logins: anna:M1, Boris:M2
-  # тесты запускают ночной прогон сами (ScheduledRunTest), по cron - нет
-  schedule:
-    enabled: false
   manual-upload:
     # тесты запускаются из каталога модуля app
     import-dir: src/test/resources/manual-upload
